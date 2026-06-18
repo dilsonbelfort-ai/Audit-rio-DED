@@ -514,6 +514,9 @@ service cloud.firestore {
   <div class="ph"><div class="container"><h1 id="form-sec-title">Solicitar reserva</h1><p>Preencha o formulário. Sua solicitação será analisada pelo DED em até 48h.</p></div></div>
   <div class="container pb">
     <div class="card" style="padding:28px">
+      <div style="background:var(--primary-xl);border:1px solid var(--primary-lt);border-left:4px solid var(--primary);border-radius:var(--r);padding:13px 17px;margin-bottom:20px">
+        <p style="color:var(--primary-dk);font-size:13px;margin:0"><i class="fa-solid fa-circle-info" style="margin-right:6px"></i><strong>Importante:</strong> após enviar esta solicitação, é obrigatório enviar um ofício para <a href="mailto:ded@unifap.br" style="color:var(--primary-dk);font-weight:600">ded@unifap.br</a> confirmando o pedido de reserva. A reserva ficará <strong>condicionada ao recebimento deste ofício em até 12 horas</strong> — caso contrário, será cancelada automaticamente pelo sistema.</p>
+      </div>
       <div id="ca" class="ca"><p id="ca-txt"></p></div>
       <div class="frow">
         <div class="fg"><label class="fl">Nome completo <span class="req">*</span></label><input type="text" class="fc" id="f-nome" placeholder="Seu nome completo"></div>
@@ -548,6 +551,12 @@ service cloud.firestore {
         </div>
         <div class="fg ffull"><label class="fl">Recursos necessários</label><div class="cbgrid" id="rec-container"></div></div>
         <div class="fg ffull"><label class="fl">Observações adicionais</label><textarea class="fc" id="f-obs" placeholder="Necessidades especiais, organização do espaço, etc."></textarea></div>
+        <div class="fg ffull">
+          <label class="cbi" style="width:fit-content;align-items:flex-start;padding:10px 13px">
+            <input type="checkbox" id="f-ofic-ack" style="margin-top:2px">
+            <span>Estou ciente de que devo enviar um <strong>ofício para ded@unifap.br</strong> em até <strong>12 horas</strong> após esta solicitação, sob pena de cancelamento automático da reserva.</span>
+          </label>
+        </div>
       </div>
       <div style="display:flex;gap:10px;margin-top:20px;padding-top:18px;border-top:1px solid var(--g100)">
         <button class="btn btn-primary" onclick="submitR()"><i class="fa-solid fa-paper-plane"></i> Enviar solicitação</button>
@@ -718,6 +727,28 @@ function badge(st) {
   };
   return m[st]||'';
 }
+function oficioBadge(r) {
+  if(r.status==='cancelado' || !r.prazoOficio) return '';
+  if(r.oficioRecebido) return '<span class="badge" style="background:var(--ok-lt);color:var(--ok)"><i class="fa-solid fa-envelope-circle-check"></i> Ofício recebido</span>';
+  const now=Date.now(), dl=new Date(r.prazoOficio).getTime();
+  if(now>dl) return '<span class="badge" style="background:var(--err-lt);color:var(--err)"><i class="fa-solid fa-triangle-exclamation"></i> Prazo do ofício expirado</span>';
+  const hrs=Math.max(0,Math.ceil((dl-now)/3600000));
+  return `<span class="badge" style="background:var(--warn-lt);color:var(--warn)"><i class="fa-regular fa-clock"></i> Aguardando ofício · ${hrs}h restantes</span>`;
+}
+function checkExpirations() {
+  const now=Date.now();
+  let changed=false;
+  S.reservas.forEach(r=>{
+    if(r.status==='pendente' && !r.oficioRecebido && r.prazoOficio && now>new Date(r.prazoOficio).getTime()){
+      r.status='cancelado';
+      r.obsAdmin=(r.obsAdmin?r.obsAdmin+' · ':'')+'Cancelada automaticamente: ofício não recebido no prazo de 12 horas.';
+      r.atualizadoEm=new Date().toISOString();
+      changed=true;
+      if(S.fbReady){ fbUpdate(r.id,{status:'cancelado',obsAdmin:r.obsAdmin,atualizadoEm:r.atualizadoEm}).catch(()=>{}); }
+    }
+  });
+  if(changed && !S.fbReady) saveLS();
+}
 
 /* ============================================================
    TOAST / LOADING
@@ -784,6 +815,7 @@ function loadLS() {
     S.reservas = d ? JSON.parse(d) : demo();
     if(!d) saveLS();
   } catch(e) { S.reservas = demo(); }
+  checkExpirations();
   setSyncing(false);
   refresh();
 }
@@ -794,9 +826,9 @@ function demo() {
   const fmt = n => { const d=new Date(); while(d.getDay()===0)d.setDate(d.getDate()+1); d.setDate(d.getDate()+n); while(d.getDay()===0)d.setDate(d.getDate()+1); return d.toISOString().slice(0,10); };
   const y = new Date().getFullYear();
   return [
-    {id:'d1',numero:`DED-${y}-001`,nome:'Profa. Ana Lima',email:'ana.lima@unifap.edu.br',tel:'(96) 98123-4567',vinculo:'Docente',depto:'DED — Pedagogia',tipo:'Defesa de TCC / Dissertação / Tese',titulo:'Defesa de TCC — Educação Inclusiva e Práticas Pedagógicas',data:fmt(2),horaInicio:'08:00',horaFim:'10:00',partic:40,recursos:['Projetor/Datashow','Microfone wireless'],obs:'',status:'confirmado',criadoEm:new Date().toISOString(),atualizadoEm:new Date().toISOString(),obsAdmin:''},
-    {id:'d2',numero:`DED-${y}-002`,nome:'Maria Eduarda Santos',email:'mariaeduarda@unifap.edu.br',tel:'',vinculo:'Discente',depto:'DED — Letras',tipo:'Seminário / Simpósio',titulo:'II Seminário de Práticas Pedagógicas Inovadoras',data:fmt(5),horaInicio:'14:00',horaFim:'18:00',partic:80,recursos:['Projetor/Datashow','Sistema de som','Microfone wireless'],obs:'Organizar cadeiras em semicírculo.',status:'pendente',criadoEm:new Date().toISOString(),atualizadoEm:new Date().toISOString(),obsAdmin:''},
-    {id:'d3',numero:`DED-${y}-003`,nome:'Prof. Carlos Mendes',email:'c.mendes@unifap.edu.br',tel:'(96) 99876-5432',vinculo:'Docente',depto:'DED — Matemática',tipo:'Palestra / Conferência',titulo:'Tecnologias Digitais no Ensino da Matemática',data:fmt(10),horaInicio:'19:00',horaFim:'22:00',partic:110,recursos:['Projetor/Datashow','Microfone wireless','Sistema de som','Câmera/Transmissão ao vivo'],obs:'Transmissão ao vivo pelo YouTube do DED.',status:'pendente',criadoEm:new Date().toISOString(),atualizadoEm:new Date().toISOString(),obsAdmin:''}
+    {id:'d1',numero:`DED-${y}-001`,nome:'Profa. Ana Lima',email:'ana.lima@unifap.edu.br',tel:'(96) 98123-4567',vinculo:'Docente',depto:'DED — Pedagogia',tipo:'Defesa de TCC / Dissertação / Tese',titulo:'Defesa de TCC — Educação Inclusiva e Práticas Pedagógicas',data:fmt(2),horaInicio:'08:00',horaFim:'10:00',partic:40,recursos:['Projetor/Datashow','Microfone wireless'],obs:'',status:'confirmado',criadoEm:new Date().toISOString(),atualizadoEm:new Date().toISOString(),obsAdmin:'',oficioRecebido:true,prazoOficio:new Date(Date.now()-3600000).toISOString()},
+    {id:'d2',numero:`DED-${y}-002`,nome:'Maria Eduarda Santos',email:'mariaeduarda@unifap.edu.br',tel:'',vinculo:'Discente',depto:'DED — Letras',tipo:'Seminário / Simpósio',titulo:'II Seminário de Práticas Pedagógicas Inovadoras',data:fmt(5),horaInicio:'14:00',horaFim:'18:00',partic:80,recursos:['Projetor/Datashow','Sistema de som','Microfone wireless'],obs:'Organizar cadeiras em semicírculo.',status:'pendente',criadoEm:new Date().toISOString(),atualizadoEm:new Date().toISOString(),obsAdmin:'',oficioRecebido:false,prazoOficio:new Date(Date.now()+10*3600000).toISOString()},
+    {id:'d3',numero:`DED-${y}-003`,nome:'Prof. Carlos Mendes',email:'c.mendes@unifap.edu.br',tel:'(96) 99876-5432',vinculo:'Docente',depto:'DED — Matemática',tipo:'Palestra / Conferência',titulo:'Tecnologias Digitais no Ensino da Matemática',data:fmt(10),horaInicio:'19:00',horaFim:'22:00',partic:110,recursos:['Projetor/Datashow','Microfone wireless','Sistema de som','Câmera/Transmissão ao vivo'],obs:'Transmissão ao vivo pelo YouTube do DED.',status:'pendente',criadoEm:new Date().toISOString(),atualizadoEm:new Date().toISOString(),obsAdmin:'',oficioRecebido:false,prazoOficio:new Date(Date.now()+6*3600000).toISOString()}
   ];
 }
 
@@ -850,6 +882,7 @@ function navAdmin() {
   else om('m-login');
 }
 function refresh() {
+  checkExpirations();
   switch(S.curSec){
     case 'inicio': renderHome(); break;
     case 'calendario': renderCal(); break;
@@ -1019,6 +1052,7 @@ async function submitR(){
   const partic=parseInt(document.getElementById('f-part').value)||0;
   const obs=g('f-obs');
   if(!nome||!email||!vinculo||!tipo||!titulo||!data||!ini||!fim){toast('Preencha todos os campos obrigatórios (*)','err');return;}
+  if(!document.getElementById('f-ofic-ack').checked){toast('Confirme que enviará o ofício para ded@unifap.br em até 12 horas.','err');return;}
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){toast('Informe um e-mail válido.','err');return;}
   if(partic<1||partic>120){toast('Participantes: entre 1 e 120.','err');return;}
   const dt=new Date(data+'T12:00:00');
@@ -1031,15 +1065,16 @@ async function submitR(){
   try{
     if(S.editId){
       const r=S.reservas.find(x=>x.id===S.editId);
-      const up={...r,nome,email,tel,vinculo,depto,tipo,titulo,data,horaInicio:ini,horaFim:fim,partic,recursos,obs,status:'pendente',atualizadoEm:now};
+      const up={...r,nome,email,tel,vinculo,depto,tipo,titulo,data,horaInicio:ini,horaFim:fim,partic,recursos,obs,status:'pendente',atualizadoEm:now,oficioRecebido:false,prazoOficio:new Date(Date.now()+12*3600000).toISOString()};
       await saveR(up);
-      toast('Reserva atualizada com sucesso!','ok');
+      toast('Reserva atualizada! Envie o ofício para ded@unifap.br em até 12 horas.','ok');
       S.editId=null;
       document.getElementById('form-sec-title').textContent='Solicitar reserva';
     } else {
       const id=mkId(), numero=mkNum();
-      await saveR({id,numero,nome,email,tel,vinculo,depto,tipo,titulo,data,horaInicio:ini,horaFim:fim,partic,recursos,obs,status:'pendente',criadoEm:now,atualizadoEm:now,obsAdmin:''});
-      toast(`Solicitação enviada! Nº ${numero}. Aguarde confirmação do DED.`,'ok');
+      const prazoOficio=new Date(Date.now()+12*3600000).toISOString();
+      await saveR({id,numero,nome,email,tel,vinculo,depto,tipo,titulo,data,horaInicio:ini,horaFim:fim,partic,recursos,obs,status:'pendente',criadoEm:now,atualizadoEm:now,obsAdmin:'',oficioRecebido:false,prazoOficio});
+      toast(`Solicitação enviada! Nº ${numero}. Envie o ofício para ded@unifap.br em até 12 horas.`,'ok');
     }
     clearF(); nav('consultar');
   }catch(e){toast('Erro ao salvar. Tente novamente.','err');}
@@ -1049,6 +1084,7 @@ function clearF(){
   ['f-nome','f-email','f-tel','f-depto','f-titulo','f-data','f-obs','f-part'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   ['f-vinculo','f-tipo','f-ini','f-fim'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.querySelectorAll('#rec-container input').forEach(c=>{c.checked=false;c.closest('label').classList.remove('on');});
+  document.getElementById('f-ofic-ack').checked=false;
   document.getElementById('ca').style.display='none';
   S.editId=null;
   document.getElementById('form-sec-title').textContent='Solicitar reserva';
@@ -1104,6 +1140,7 @@ function updStats(){
    ============================================================ */
 function mkCard(r,isAdm){
   const admActs = isAdm ? `
+    ${r.status==='pendente'&&!r.oficioRecebido?`<button class="btn btn-outline btn-sm" onclick="markOficio('${r.id}')"><i class="fa-solid fa-envelope"></i> Marcar ofício recebido</button>`:''}
     ${r.status==='pendente'?`<button class="btn btn-ok btn-sm" onclick="confirmR('${r.id}')"><i class="fa-solid fa-check"></i> Confirmar</button>`:''}
     ${r.status==='confirmado'?`<button class="btn btn-outline btn-sm" onclick="setPend('${r.id}')"><i class="fa-solid fa-rotate-left"></i> Reverter</button>`:''}
     ${r.status!=='cancelado'?`<button class="btn btn-danger btn-sm" onclick="cancelR('${r.id}')"><i class="fa-solid fa-ban"></i> Cancelar</button>`:''}
@@ -1111,9 +1148,10 @@ function mkCard(r,isAdm){
   `:'';
   const pubActs = !isAdm&&r.status!=='cancelado'
     ? `<button class="btn btn-outline btn-sm" onclick="cancelR('${r.id}')"><i class="fa-solid fa-ban"></i> Cancelar</button>`:' ';
+  const ob=oficioBadge(r);
   return `<div class="rcard">
     <div class="rcard-hd"><div>
-      <div style="display:flex;align-items:center;gap:7px;margin-bottom:4px"><span class="rnum">${r.numero||'—'}</span>${badge(r.status)}</div>
+      <div style="display:flex;align-items:center;gap:7px;margin-bottom:4px;flex-wrap:wrap"><span class="rnum">${r.numero||'—'}</span>${badge(r.status)}${ob}</div>
       <div class="rcard-title">${r.titulo}</div>
       <div class="rcard-sub">${r.nome} · ${r.vinculo}${r.depto?' · '+r.depto:''}</div>
     </div></div>
@@ -1133,10 +1171,23 @@ function mkCard(r,isAdm){
    ADMIN ACTIONS
    ============================================================ */
 async function confirmR(id){
+  const r=S.reservas.find(x=>x.id===id);
+  if(r && !r.oficioRecebido){
+    if(!confirm('O ofício ainda não foi marcado como recebido para esta reserva. Confirmar mesmo assim?')) return;
+  }
   const obs = prompt('Observação para o solicitante (opcional):') || '';
   showLoad();
   try{ await updStatus(id,'confirmado',obs); toast('Reserva confirmada!','ok'); }
   catch(e){ toast('Erro ao confirmar.','err'); }
+  hideLoad(); if(S.adminOk) renderAdm();
+}
+async function markOficio(id){
+  showLoad();
+  try{
+    if(S.fbReady){ await fbUpdate(id,{oficioRecebido:true}); }
+    else { const r=S.reservas.find(x=>x.id===id); if(r) r.oficioRecebido=true; saveLS(); refresh(); }
+    toast('Ofício marcado como recebido.','ok');
+  }catch(e){ toast('Erro ao atualizar.','err'); }
   hideLoad(); if(S.adminOk) renderAdm();
 }
 async function setPend(id){
@@ -1197,6 +1248,7 @@ function showDetail(id){
       <div class="di"><label>Nº de participantes</label><span>${r.partic} pessoas</span></div>
       <div class="di"><label>Data</label><span>${fmtDate(r.data)}</span></div>
       <div class="di"><label>Horário</label><span>${r.horaInicio} – ${r.horaFim}</span></div>
+      ${r.prazoOficio&&r.status!=='cancelado'?`<div class="di di-full"><label>Status do ofício (ded@unifap.br)</label><span>${oficioBadge(r)||'—'}</span></div>`:''}
       <div class="di"><label>Solicitante</label><span>${r.nome}</span></div>
       <div class="di"><label>E-mail</label><span>${r.email}</span></div>
       ${r.tel?`<div class="di"><label>Telefone</label><span>${r.tel}</span></div>`:''}
