@@ -1,0 +1,1336 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Auditório DED — UNIFAP | Agendamento Online</title>
+<meta name="description" content="Sistema de agendamento do Auditório do Departamento de Educação da UNIFAP">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<style>
+/* ===== RESET ===== */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --primary:#1B4F8A;--primary-dk:#0F3060;--primary-lt:#2E6DB4;--primary-xl:#EBF2FA;
+  --accent:#E8A020;--accent-dk:#C57D0A;--accent-lt:#FFF3DC;
+  --ok:#1E7E4E;--ok-lt:#E8F5EE;--warn:#B45309;--warn-lt:#FEF3C7;
+  --err:#991B1B;--err-lt:#FEE2E2;
+  --g50:#F9FAFB;--g100:#F3F4F6;--g200:#E5E7EB;--g300:#D1D5DB;
+  --g400:#9CA3AF;--g500:#6B7280;--g600:#4B5563;--g700:#374151;--g800:#1F2937;
+  --white:#fff;
+  --sh:0 1px 3px rgba(0,0,0,.1),0 1px 2px rgba(0,0,0,.06);
+  --sh-md:0 4px 6px rgba(0,0,0,.07),0 2px 4px rgba(0,0,0,.05);
+  --sh-lg:0 10px 15px rgba(0,0,0,.1),0 4px 6px rgba(0,0,0,.05);
+  --r:8px;--r-md:10px;--r-lg:14px;--r-xl:20px;
+  --nav:64px;--tr:all .2s ease
+}
+html{scroll-behavior:smooth}
+body{font-family:'Inter',-apple-system,sans-serif;font-size:15px;line-height:1.6;color:var(--g800);background:var(--g50);min-height:100vh}
+h1{font-size:1.875rem;font-weight:700;line-height:1.2}
+h2{font-size:1.375rem;font-weight:600;line-height:1.3}
+h3{font-size:1.125rem;font-weight:600}
+h4{font-size:.9375rem;font-weight:600}
+p{color:var(--g600)}
+a{color:var(--primary);text-decoration:none}
+
+/* ===== NAVBAR ===== */
+.nav{position:fixed;top:0;left:0;right:0;height:var(--nav);background:var(--primary-dk);z-index:1000;display:flex;align-items:center;padding:0 20px;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.nav-brand{display:flex;align-items:center;gap:11px;color:#fff;text-decoration:none;flex-shrink:0;margin-right:auto}
+.nav-logo{width:40px;height:40px;background:var(--accent);border-radius:9px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:var(--primary-dk);letter-spacing:.3px}
+.nav-titles span:first-child{font-weight:700;font-size:14px;color:#fff;display:block;line-height:1.2}
+.nav-titles span:last-child{font-size:10px;opacity:.65;color:#fff}
+.nav-links{display:flex;align-items:center;gap:2px}
+.nav-links a{display:flex;align-items:center;gap:5px;padding:7px 13px;border-radius:var(--r);color:rgba(255,255,255,.8);font-size:13px;font-weight:500;transition:var(--tr);text-decoration:none;white-space:nowrap}
+.nav-links a:hover,.nav-links a.active{background:rgba(255,255,255,.12);color:#fff}
+.nav-links a.nav-admin{background:var(--accent);color:var(--primary-dk);font-weight:600;margin-left:4px}
+.nav-links a.nav-admin:hover{background:var(--accent-dk)}
+.nav-links a.nav-admin.logged{background:var(--ok);color:#fff}
+.sync-badge{display:flex;align-items:center;gap:5px;font-size:11px;color:rgba(255,255,255,.55);margin-right:8px;white-space:nowrap}
+.sync-dot{width:6px;height:6px;border-radius:50%;background:#69D2A0}
+.sync-dot.spin{background:var(--accent);animation:pulse 1.5s infinite}
+.hamburger{display:none;flex-direction:column;gap:5px;cursor:pointer;padding:6px;margin-left:8px}
+.hamburger span{width:22px;height:2px;background:#fff;border-radius:2px;display:block;transition:var(--tr)}
+
+/* ===== LAYOUT ===== */
+.main{margin-top:var(--nav);min-height:calc(100vh - var(--nav))}
+.sec{display:none}.sec.active{display:block}
+.container{max-width:1100px;margin:0 auto;padding:0 20px}
+.ph{background:linear-gradient(135deg,var(--primary) 0%,var(--primary-dk) 100%);padding:36px 0 28px;color:#fff}
+.ph h1{color:#fff;margin-bottom:5px;font-size:1.75rem}
+.ph p{color:rgba(255,255,255,.78);font-size:15px}
+.pb{padding:28px 0 52px}
+
+/* ===== HERO ===== */
+.hero{background:linear-gradient(135deg,var(--primary-dk) 0%,var(--primary) 55%,var(--primary-lt) 100%);color:#fff;padding:56px 0 44px;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;top:-100px;right:-100px;width:450px;height:450px;background:rgba(255,255,255,.04);border-radius:50%}
+.hero::after{content:'';position:absolute;bottom:-130px;left:-80px;width:340px;height:340px;background:rgba(255,255,255,.03);border-radius:50%}
+.hero-inner{position:relative;z-index:1}
+.hero-chip{display:inline-flex;align-items:center;gap:6px;background:var(--accent);color:var(--primary-dk);padding:4px 13px;border-radius:20px;font-size:12px;font-weight:700;margin-bottom:16px}
+.hero h1{color:#fff;font-size:2.2rem;margin-bottom:10px}
+.hero>*>p{color:rgba(255,255,255,.78);font-size:16px;max-width:540px}
+.hero-acts{display:flex;gap:12px;margin-top:28px;flex-wrap:wrap}
+.hero-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:38px}
+.hero-stat{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:var(--r-md);padding:14px;text-align:center}
+.hero-stat .n{font-size:1.75rem;font-weight:700;color:var(--accent)}
+.hero-stat .l{font-size:11px;color:rgba(255,255,255,.65);margin-top:2px}
+
+/* ===== HOME GRID ===== */
+.hgrid{display:grid;grid-template-columns:2fr 1fr;gap:22px;padding:28px 0}
+
+/* ===== CARD ===== */
+.card{background:var(--white);border-radius:var(--r-lg);border:1px solid var(--g200);box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.card-hd{padding:16px 20px;border-bottom:1px solid var(--g100);display:flex;align-items:center;justify-content:space-between}
+.card-hd h3{margin:0}
+.card-bd{padding:20px}
+.card-ft{padding:13px 20px;border-top:1px solid var(--g100);background:var(--g50);border-radius:0 0 var(--r-lg) var(--r-lg)}
+
+/* ===== BUTTONS ===== */
+.btn{display:inline-flex;align-items:center;gap:7px;padding:9px 18px;border-radius:var(--r);font-size:14px;font-weight:500;cursor:pointer;transition:var(--tr);border:none;line-height:1.4;text-decoration:none;font-family:inherit}
+.btn:hover{text-decoration:none}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover{background:var(--primary-dk);color:#fff}
+.btn-accent{background:var(--accent);color:var(--primary-dk);font-weight:600}
+.btn-accent:hover{background:var(--accent-dk);color:var(--primary-dk)}
+.btn-ok{background:var(--ok);color:#fff}
+.btn-ok:hover{opacity:.9;color:#fff}
+.btn-danger{background:var(--err);color:#fff}
+.btn-danger:hover{opacity:.9;color:#fff}
+.btn-outline{background:var(--white);color:var(--g700);border:1px solid var(--g300)}
+.btn-outline:hover{background:var(--g50);border-color:var(--g400);color:var(--g800)}
+.btn-ghost{background:transparent;color:var(--primary);border:1px solid var(--primary-lt)}
+.btn-ghost:hover{background:var(--primary-xl)}
+.btn-sm{padding:6px 12px;font-size:12px;gap:5px}
+.btn-lg{padding:12px 24px;font-size:16px}
+.btn-block{width:100%;justify-content:center}
+
+/* ===== FORM ===== */
+.fg{margin-bottom:15px}
+.fl{display:block;font-size:13px;font-weight:500;color:var(--g700);margin-bottom:5px}
+.fl .req{color:var(--err);margin-left:2px}
+.fc{display:block;width:100%;padding:9px 12px;font-size:14px;font-family:inherit;color:var(--g800);background:var(--white);border:1px solid var(--g300);border-radius:var(--r);transition:var(--tr);line-height:1.5}
+.fc:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(27,79,138,.11)}
+.fc.err{border-color:var(--err)}
+textarea.fc{resize:vertical;min-height:80px}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:15px}
+.frow3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:15px}
+.ffull{grid-column:1/-1}
+.fhint{font-size:12px;color:var(--g500);margin-top:4px}
+.cbgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(195px,1fr));gap:7px;margin-top:6px}
+.cbi{display:flex;align-items:center;gap:8px;padding:8px 11px;border:1px solid var(--g200);border-radius:var(--r);cursor:pointer;transition:var(--tr);font-size:13px;color:var(--g700);user-select:none}
+.cbi:hover{border-color:var(--primary-lt);background:var(--primary-xl)}
+.cbi input{accent-color:var(--primary);width:15px;height:15px;cursor:pointer}
+.cbi.on{border-color:var(--primary);background:var(--primary-xl);color:var(--primary-dk)}
+.ca{background:var(--err-lt);border:1px solid #FECACA;border-left:4px solid var(--err);border-radius:var(--r);padding:11px 15px;display:none;margin-bottom:15px}
+.ca p{color:var(--err);font-size:13px;margin:0}
+
+/* ===== CALENDAR ===== */
+.cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.cal-nav h2{margin:0}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cdh{text-align:center;font-size:11px;font-weight:600;color:var(--g500);padding:7px 4px;text-transform:uppercase;letter-spacing:.5px}
+.cd{min-height:86px;background:var(--white);border:1px solid var(--g200);border-radius:var(--r);padding:6px;cursor:pointer;transition:var(--tr)}
+.cd:hover:not(.cd-o):not(.cd-sun){border-color:var(--primary-lt);box-shadow:var(--sh)}
+.cd-o{background:var(--g50);opacity:.45;cursor:default;pointer-events:none}
+.cd-sun{background:var(--g50);opacity:.35;cursor:not-allowed}
+.cd-today{border-color:var(--primary);border-width:2px}
+.cd-today .cdn{background:var(--primary);color:#fff}
+.cd-sel{border-color:var(--accent);border-width:2px;box-shadow:0 0 0 3px rgba(232,160,32,.18)}
+.cdn{font-size:12px;font-weight:600;width:25px;height:25px;display:flex;align-items:center;justify-content:center;border-radius:50%;margin-bottom:3px;color:var(--g700)}
+.cdevts{display:flex;flex-direction:column;gap:2px}
+.cdev{font-size:9px;padding:2px 5px;border-radius:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500}
+.cdev.pendente{background:var(--warn-lt);color:var(--warn)}
+.cdev.confirmado{background:var(--ok-lt);color:var(--ok)}
+.cdev.cancelado{background:var(--g100);color:var(--g500);text-decoration:line-through}
+.cdmore{font-size:9px;color:var(--primary);font-weight:500;padding:1px 4px}
+.leg{display:flex;gap:14px;flex-wrap:wrap;padding:10px 15px;background:var(--g50);border-radius:var(--r);border:1px solid var(--g200);margin-bottom:14px;font-size:12px}
+.li{display:flex;align-items:center;gap:5px;color:var(--g600)}
+.ld{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+
+/* ===== SLOTS ===== */
+.sl-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px}
+.sl-hd h2{margin:0}
+.slc{border:1px solid var(--g200);border-radius:var(--r-lg);overflow:hidden}
+.slr{display:grid;grid-template-columns:70px 1fr;border-bottom:1px solid var(--g100)}
+.slr:last-child{border-bottom:none}
+.slt-lbl{display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:var(--g500);background:var(--g50);border-right:1px solid var(--g100);padding:8px}
+.slc-content{padding:8px 14px;min-height:44px;display:flex;align-items:center;cursor:pointer;transition:var(--tr)}
+.slc-content:hover{background:var(--g50)}
+.slc-content.bk{cursor:pointer}
+.slc-content.bk-pendente{border-left:3px solid var(--accent)}
+.slc-content.bk-confirmado{border-left:3px solid var(--ok)}
+.slc-content.bk-cancelado{border-left:3px solid var(--g300);opacity:.7}
+.sl-avail{font-size:12px;color:var(--g400);display:flex;align-items:center;gap:6px}
+.sl-etitle{font-size:13px;font-weight:600;color:var(--g800)}
+.sl-emeta{font-size:11px;color:var(--g500);margin-top:1px}
+
+/* ===== RESERVA CARDS ===== */
+.rcard{background:var(--white);border:1px solid var(--g200);border-radius:var(--r-lg);padding:16px 18px;transition:var(--tr)}
+.rcard:hover{border-color:var(--g300);box-shadow:var(--sh)}
+.rcard-hd{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px}
+.rcard-title{font-size:14px;font-weight:600;color:var(--g800);margin:0}
+.rcard-sub{font-size:12px;color:var(--g500);margin-top:2px}
+.rmeta{display:flex;flex-wrap:wrap;gap:11px;margin-bottom:10px}
+.rmi{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--g600)}
+.rmi i{color:var(--g400);font-size:12px}
+.rack{display:flex;gap:6px;flex-wrap:wrap;padding-top:10px;border-top:1px solid var(--g100)}
+.rlist{display:flex;flex-direction:column;gap:10px}
+.rnum{font-family:monospace;font-size:11px;font-weight:700;background:var(--primary-xl);color:var(--primary);padding:2px 7px;border-radius:4px}
+
+/* ===== BADGES ===== */
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap}
+.badge-pendente{background:var(--warn-lt);color:var(--warn)}
+.badge-confirmado{background:var(--ok-lt);color:var(--ok)}
+.badge-cancelado{background:var(--g100);color:var(--g500)}
+
+/* ===== MODAL ===== */
+.mbk{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:2000;align-items:center;justify-content:center;padding:16px}
+.mbk.open{display:flex}
+.modal{background:var(--white);border-radius:var(--r-xl);width:100%;max-width:540px;max-height:90vh;overflow-y:auto;box-shadow:var(--sh-lg)}
+.mhd{padding:18px 22px 14px;border-bottom:1px solid var(--g100);display:flex;align-items:center;justify-content:space-between}
+.mhd h3{margin:0}
+.mbd{padding:20px 22px}
+.mft{padding:14px 22px;border-top:1px solid var(--g100);display:flex;justify-content:flex-end;gap:10px}
+.mcl{width:32px;height:32px;background:var(--g100);border:none;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--g600);transition:var(--tr)}
+.mcl:hover{background:var(--g200)}
+
+/* ===== TOAST ===== */
+.toasts{position:fixed;bottom:22px;right:22px;z-index:3000;display:flex;flex-direction:column;gap:7px}
+.toast{display:flex;align-items:center;gap:9px;padding:11px 17px;background:var(--g800);color:#fff;border-radius:var(--r-md);font-size:13px;min-width:250px;max-width:380px;box-shadow:var(--sh-lg);animation:sin .3s ease}
+.toast.ok{background:var(--ok)}.toast.err{background:var(--err)}.toast.warn{background:var(--warn)}
+@keyframes sin{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+@keyframes sout{from{transform:translateX(0);opacity:1}to{transform:translateX(100%);opacity:0}}
+
+/* ===== LOADING ===== */
+.lov{display:none;position:fixed;inset:0;background:rgba(255,255,255,.85);z-index:5000;align-items:center;justify-content:center;flex-direction:column;gap:12px}
+.lov.on{display:flex}
+.spinner{width:40px;height:40px;border:3px solid var(--g200);border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* ===== STATS ===== */
+.stgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+.stcard{background:var(--white);border:1px solid var(--g200);border-radius:var(--r-md);padding:15px;text-align:center}
+.stcard .n{font-size:1.875rem;font-weight:700}
+.stcard .l{font-size:11px;color:var(--g500);margin-top:2px}
+.stcard.tot .n{color:var(--primary)}
+.stcard.pen .n{color:var(--warn)}
+.stcard.con .n{color:var(--ok)}
+.stcard.can .n{color:var(--g400)}
+
+/* ===== ADMIN HEADER ===== */
+.adm-hd{background:var(--primary-dk);color:#fff;padding:18px 22px;border-radius:var(--r-lg) var(--r-lg) 0 0;display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.adm-hd h3{color:#fff;margin:0}
+
+/* ===== FILTER BAR ===== */
+.fbar{display:flex;gap:9px;margin-bottom:14px;flex-wrap:wrap}
+.fbar input,.fbar select{padding:8px 12px;border:1px solid var(--g200);border-radius:var(--r);font-size:13px;font-family:inherit;color:var(--g700);background:var(--white);transition:var(--tr)}
+.fbar input:focus,.fbar select:focus{outline:none;border-color:var(--primary)}
+.fbar input{flex:1;min-width:190px}
+
+/* ===== SETUP BANNER ===== */
+.sbanner{background:var(--accent-lt);border:1px solid var(--accent);border-left:4px solid var(--accent);border-radius:var(--r);padding:13px 17px;display:none;align-items:flex-start;gap:11px;margin-bottom:22px}
+.sbanner i{color:var(--accent-dk);font-size:18px;flex-shrink:0;margin-top:1px}
+.sbanner p{color:var(--g700);font-size:13px;margin:0}
+.code-block{background:var(--g800);color:#A8D8A8;padding:13px 15px;border-radius:var(--r);font-family:monospace;font-size:12px;line-height:1.8;margin-top:9px;overflow-x:auto;white-space:pre}
+.step-list{counter-reset:s}
+.step{display:flex;gap:15px;margin-bottom:18px}
+.step-n{width:27px;height:27px;background:var(--primary);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0}
+.step-bd h4{font-size:14px;margin-bottom:5px}
+.step-bd p{font-size:13px}
+
+/* ===== EMPTY STATE ===== */
+.empty{text-align:center;padding:46px 20px;color:var(--g400)}
+.empty i{font-size:2.8rem;margin-bottom:11px;display:block}
+.empty p{font-size:14px}
+
+/* ===== DETAIL GRID ===== */
+.dgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.di label{display:block;font-size:11px;font-weight:600;color:var(--g500);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px}
+.di span{font-size:14px;color:var(--g800)}
+.di-full{grid-column:1/-1}
+
+/* ===== ADMIN OBS ===== */
+.obs-box{background:var(--primary-xl);border-radius:var(--r);padding:8px 12px;font-size:12px;color:var(--primary-dk);margin-bottom:8px;border-left:3px solid var(--primary-lt)}
+
+/* ===== PW WALL ===== */
+.pw-wall{background:var(--g50);border:1px solid var(--g200);border-radius:var(--r-xl);padding:36px 28px;text-align:center;max-width:400px;margin:40px auto}
+.pw-icon{font-size:3rem;color:var(--primary);margin-bottom:14px}
+.pw-wall h3{margin-bottom:6px}
+.pw-wall p{font-size:13px;margin-bottom:20px}
+
+/* ===== MODE INDICATOR ===== */
+.mode-ind{display:inline-flex;align-items:center;gap:5px;font-size:11px;padding:3px 9px;border-radius:12px}
+.mode-ind.fb{background:#E8F5E8;color:#1B5E20}
+.mode-ind.loc{background:var(--warn-lt);color:var(--warn)}
+.mdot{width:6px;height:6px;border-radius:50%}
+.mode-ind.fb .mdot{background:#43A047}
+.mode-ind.loc .mdot{background:var(--accent);animation:pulse 2s infinite}
+
+/* ===== FOOTER ===== */
+footer{background:var(--g800);color:var(--g400);padding:22px 0;font-size:13px;margin-top:auto}
+footer .container{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:11px}
+footer a{color:var(--g400)}.footer a:hover{color:#fff}
+
+/* ===== TABS ===== */
+.tnav{display:flex;border-bottom:2px solid var(--g200);margin-bottom:20px}
+.tbtn{padding:9px 17px;font-size:14px;font-weight:500;color:var(--g500);cursor:pointer;border:none;background:transparent;border-bottom:2px solid transparent;margin-bottom:-2px;transition:var(--tr);font-family:inherit}
+.tbtn:hover{color:var(--g700)}
+.tbtn.active{color:var(--primary);border-bottom-color:var(--primary)}
+
+/* ===== PRINT ===== */
+@media print{
+  .nav,.no-print,footer,.btn,nav{display:none!important}
+  .main{margin-top:0}
+  body{font-size:12px}
+  .ph-print{text-align:center;border-bottom:2px solid var(--primary);padding-bottom:14px;margin-bottom:18px}
+}
+
+/* ===== RESPONSIVE ===== */
+@media(max-width:900px){.hgrid{grid-template-columns:1fr}}
+@media(max-width:768px){
+  .nav-links{display:none;position:absolute;top:var(--nav);left:0;right:0;background:var(--primary-dk);flex-direction:column;padding:8px;gap:2px;box-shadow:0 4px 8px rgba(0,0,0,.3)}
+  .nav-links.open{display:flex}
+  .hamburger{display:flex}
+  .sync-badge{display:none}
+  .hero h1{font-size:1.6rem}
+  .hero-stats{grid-template-columns:1fr 1fr}
+  .frow,.frow3{grid-template-columns:1fr}
+  .stgrid{grid-template-columns:1fr 1fr}
+  .cal-grid{gap:2px}
+  .cd{min-height:62px}
+  .cdh{font-size:9px;padding:5px 2px}
+}
+@media(max-width:480px){
+  .hero-stats{grid-template-columns:1fr}
+  .stgrid{grid-template-columns:1fr 1fr}
+  .cbgrid{grid-template-columns:1fr}
+  .fbar{flex-direction:column}
+  .fbar input{width:100%}
+  .dgrid{grid-template-columns:1fr}
+  .di-full{grid-column:1}
+}
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div class="lov" id="lov"><div class="spinner"></div><small style="color:var(--g500)">Aguarde...</small></div>
+
+<!-- TOASTS -->
+<div class="toasts" id="toasts"></div>
+
+<!-- ===================== MODALS ===================== -->
+
+<!-- ADMIN LOGIN -->
+<div class="mbk" id="m-login">
+  <div class="modal" style="max-width:400px">
+    <div class="mhd"><h3><i class="fa-solid fa-lock" style="color:var(--primary);margin-right:8px"></i>Acesso administrativo</h3><button class="mcl" onclick="cm('m-login')"><i class="fa-solid fa-xmark"></i></button></div>
+    <div class="mbd">
+      <p style="font-size:13px;margin-bottom:18px">Informe a senha do administrador para acessar o painel de homologação de reservas.</p>
+      <div class="fg"><label class="fl">Senha</label><input type="password" class="fc" id="pw-in" placeholder="Senha de administrador" onkeydown="if(event.key==='Enter')tryLogin()"></div>
+      <div id="pw-err" style="color:var(--err);font-size:12px;min-height:16px;margin-top:4px"></div>
+    </div>
+    <div class="mft"><button class="btn btn-outline" onclick="cm('m-login')">Cancelar</button><button class="btn btn-primary" onclick="tryLogin()"><i class="fa-solid fa-arrow-right-to-bracket"></i> Entrar</button></div>
+  </div>
+</div>
+
+<!-- DETAIL MODAL -->
+<div class="mbk" id="m-detail">
+  <div class="modal" style="max-width:580px">
+    <div class="mhd"><h3 id="m-detail-title">Detalhes da reserva</h3><button class="mcl" onclick="cm('m-detail')"><i class="fa-solid fa-xmark"></i></button></div>
+    <div class="mbd" id="m-detail-bd"></div>
+    <div class="mft no-print"><button class="btn btn-outline" onclick="window.print()"><i class="fa-solid fa-print"></i> Imprimir</button><button class="btn btn-primary" onclick="cm('m-detail')">Fechar</button></div>
+  </div>
+</div>
+
+<!-- SETUP GUIDE MODAL -->
+<div class="mbk" id="m-setup">
+  <div class="modal" style="max-width:600px">
+    <div class="mhd"><h3><i class="fa-brands fa-google" style="color:#EA4335;margin-right:7px"></i>Como configurar o Firebase</h3><button class="mcl" onclick="cm('m-setup')"><i class="fa-solid fa-xmark"></i></button></div>
+    <div class="mbd">
+      <p style="font-size:13px;margin-bottom:20px">Siga os passos abaixo para ativar o banco de dados em nuvem gratuito (Firebase Firestore).</p>
+      <div class="step-list">
+        <div class="step"><div class="step-n">1</div><div class="step-bd"><h4>Criar projeto no Firebase</h4><p>Acesse <a href="https://console.firebase.google.com" target="_blank">console.firebase.google.com</a> → Criar projeto → Dê um nome (ex: <em>ded-unifap</em>) → Desativar Analytics (opcional) → Criar.</p></div></div>
+        <div class="step"><div class="step-n">2</div><div class="step-bd"><h4>Ativar Firestore Database</h4><p>No painel do projeto → <strong>Build → Firestore Database → Criar banco de dados → Modo de produção → Selecionar região (southamerica-east1).</strong></p></div></div>
+        <div class="step"><div class="step-n">3</div><div class="step-bd"><h4>Configurar regras de segurança</h4><p>Firestore → Aba "Regras" → Substitua o conteúdo pelo código abaixo e clique em <strong>Publicar</strong>:</p>
+<div class="code-block">rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /reservas/{id} {
+      allow read: true;
+      allow create: true;
+      allow update, delete: if true;
+    }
+    match /config/{id} {
+      allow read, write: if true;
+    }
+  }
+}</div></div></div>
+        <div class="step"><div class="step-n">4</div><div class="step-bd"><h4>Copiar configuração do app</h4><p>Configurações do projeto (engrenagem) → Adicionar app → Web (</>) → Registrar → Copie o objeto <code>firebaseConfig</code>.</p></div></div>
+        <div class="step"><div class="step-n">5</div><div class="step-bd"><h4>Colar no arquivo HTML</h4><p>Abra o arquivo <code>auditorio_ded_unifap.html</code> em qualquer editor de texto → Localize o bloco <code>FIREBASE_CONFIG</code> no início do &lt;script&gt; → Substitua pelos valores copiados → Salve.</p></div></div>
+        <div class="step"><div class="step-n">6</div><div class="step-bd"><h4>Publicar no GitHub Pages (opcional)</h4><p>Crie um repositório no GitHub → Faça upload do arquivo HTML → Vá em Settings → Pages → Source: main → O link público ficará disponível em <code>usuario.github.io/repositorio</code>.</p></div></div>
+      </div>
+    </div>
+    <div class="mft"><button class="btn btn-primary" onclick="cm('m-setup')">Entendido!</button></div>
+  </div>
+</div>
+
+<!-- CHANGE PASSWORD MODAL -->
+<div class="mbk" id="m-chpw">
+  <div class="modal" style="max-width:420px">
+    <div class="mhd"><h3><i class="fa-solid fa-key" style="color:var(--primary);margin-right:7px"></i>Alterar senha</h3><button class="mcl" onclick="cm('m-chpw')"><i class="fa-solid fa-xmark"></i></button></div>
+    <div class="mbd">
+      <div class="fg"><label class="fl">Senha atual <span class="req">*</span></label><input type="password" class="fc" id="pw-cur" placeholder="Senha atual"></div>
+      <div class="fg"><label class="fl">Nova senha <span class="req">*</span></label><input type="password" class="fc" id="pw-n1" placeholder="Mínimo 6 caracteres"></div>
+      <div class="fg"><label class="fl">Confirmar nova senha <span class="req">*</span></label><input type="password" class="fc" id="pw-n2" placeholder="Repita a nova senha"></div>
+      <div id="pw-chg-msg" style="font-size:12px;min-height:16px"></div>
+    </div>
+    <div class="mft"><button class="btn btn-outline" onclick="cm('m-chpw')">Cancelar</button><button class="btn btn-primary" onclick="chgPw()"><i class="fa-solid fa-check"></i> Salvar</button></div>
+  </div>
+</div>
+
+<!-- ===================== NAVBAR ===================== -->
+<nav class="nav">
+  <a class="nav-brand" href="#inicio" onclick="nav('inicio')">
+    <div class="nav-logo">DED</div>
+    <div class="nav-titles"><span>Auditório DED</span><span>UNIFAP — Agendamento Online</span></div>
+  </a>
+  <div class="sync-badge"><span class="sync-dot" id="sdot"></span><span id="stxt">Sincronizado</span></div>
+  <div class="nav-links" id="nav-links">
+    <a data-s="inicio" onclick="nav('inicio')"><i class="fa-solid fa-house"></i> Início</a>
+    <a data-s="calendario" onclick="nav('calendario')"><i class="fa-regular fa-calendar"></i> Calendário</a>
+    <a data-s="horarios" onclick="nav('horarios')"><i class="fa-regular fa-clock"></i> Horários</a>
+    <a data-s="reservar" onclick="nav('reservar')"><i class="fa-solid fa-plus"></i> Reservar</a>
+    <a data-s="consultar" onclick="nav('consultar')"><i class="fa-solid fa-magnifying-glass"></i> Consultar</a>
+    <a data-s="admin" id="nav-adm" class="nav-admin" onclick="navAdmin()"><i class="fa-solid fa-lock"></i> Administração</a>
+  </div>
+  <div class="hamburger" onclick="toggleMenu()"><span></span><span></span><span></span></div>
+</nav>
+
+<!-- ===================== MAIN ===================== -->
+<main class="main">
+
+<!-- INÍCIO -->
+<div class="sec active" id="sec-inicio">
+  <div class="hero">
+    <div class="container hero-inner">
+      <div class="hero-chip"><i class="fa-solid fa-building-columns"></i> Sistema Oficial — DED/UNIFAP</div>
+      <h1>Agendamento do Auditório</h1>
+      <p>Agende o uso do auditório do Departamento de Educação de forma online, rápida e transparente. Capacidade para 120 pessoas, de segunda a sábado, das 8h às 22h.</p>
+      <div class="hero-acts">
+        <button class="btn btn-accent btn-lg" onclick="nav('reservar')"><i class="fa-solid fa-calendar-plus"></i> Fazer reserva</button>
+        <button class="btn btn-lg" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3)" onclick="nav('calendario')"><i class="fa-regular fa-calendar"></i> Ver calendário</button>
+      </div>
+      <div class="hero-stats">
+        <div class="hero-stat"><div class="n" id="hs-total">0</div><div class="l">Reservas no sistema</div></div>
+        <div class="hero-stat"><div class="n" id="hs-pend">0</div><div class="l">Aguardando confirmação</div></div>
+        <div class="hero-stat"><div class="n" id="hs-conf">0</div><div class="l">Confirmadas</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="container">
+    <div id="setup-banner" class="sbanner">
+      <i class="fa-solid fa-triangle-exclamation"></i>
+      <p><strong>Modo de demonstração ativo.</strong> Os dados estão sendo salvos apenas neste navegador. Para sincronizar em tempo real com outros usuários via Firebase, <a href="#" onclick="om('m-setup');return false">siga o guia de configuração</a>.</p>
+    </div>
+    <div class="hgrid">
+      <div>
+        <div class="card">
+          <div class="card-hd"><h3><i class="fa-regular fa-calendar-check" style="color:var(--primary);margin-right:7px"></i>Próximas reservas</h3><button class="btn btn-ghost btn-sm" onclick="nav('calendario')"><i class="fa-regular fa-calendar"></i> Ver calendário</button></div>
+          <div class="card-bd" id="upcoming-list"><div class="empty"><i class="fa-regular fa-calendar-xmark"></i><p>Carregando...</p></div></div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div class="card">
+          <div class="card-hd"><h3>Informações</h3></div>
+          <div class="card-bd" style="font-size:13px">
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;gap:10px;align-items:flex-start"><i class="fa-solid fa-location-dot" style="color:var(--primary);width:16px;margin-top:2px"></i><span>Bloco DED — Campus Marco Zero do Equador, Macapá/AP</span></div>
+              <div style="display:flex;gap:10px;align-items:flex-start"><i class="fa-regular fa-clock" style="color:var(--primary);width:16px;margin-top:2px"></i><span>Segunda a sábado, das 08h às 22h</span></div>
+              <div style="display:flex;gap:10px;align-items:flex-start"><i class="fa-solid fa-users" style="color:var(--primary);width:16px;margin-top:2px"></i><span>Capacidade: 120 pessoas</span></div>
+              <div style="display:flex;gap:10px;align-items:flex-start"><i class="fa-solid fa-wifi" style="color:var(--primary);width:16px;margin-top:2px"></i><span>Projetor, microfone, sistema de som, câmera, computador</span></div>
+            </div>
+          </div>
+          <div class="card-ft"><button class="btn btn-primary btn-block btn-sm" onclick="nav('reservar')"><i class="fa-solid fa-plus"></i> Solicitar reserva</button></div>
+        </div>
+        <div class="card">
+          <div class="card-hd"><h3>Status do sistema</h3></div>
+          <div class="card-bd" style="font-size:13px">
+            <div id="mode-indicator" class="mode-ind loc" style="margin-bottom:12px"><span class="mdot"></span>Modo local</div>
+            <p style="font-size:12px">Reservas confirmadas são homologadas pelo secretariado do DED.</p>
+            <button class="btn btn-ghost btn-sm btn-block" style="margin-top:12px" onclick="om('m-setup')"><i class="fa-brands fa-google"></i> Guia de configuração</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CALENDÁRIO -->
+<div class="sec" id="sec-calendario">
+  <div class="ph"><div class="container"><h1>Calendário de reservas</h1><p>Visualize e acesse os agendamentos por mês</p></div></div>
+  <div class="container pb">
+    <div class="leg">
+      <div class="li"><div class="ld" style="background:#FEF3C7;border:1px solid #F59E0B"></div>Pendente (aguarda confirmação)</div>
+      <div class="li"><div class="ld" style="background:#E8F5EE;border:1px solid #34D399"></div>Confirmado</div>
+      <div class="li"><div class="ld" style="background:#F3F4F6;border:1px solid #D1D5DB"></div>Cancelado</div>
+      <div class="li"><div class="ld" style="border:2px solid var(--primary)"></div>Hoje</div>
+    </div>
+    <div class="card" style="padding:20px">
+      <div class="cal-nav">
+        <button class="btn btn-outline btn-sm" onclick="prevM()"><i class="fa-solid fa-chevron-left"></i></button>
+        <h2 id="cal-mon" style="margin:0"></h2>
+        <button class="btn btn-outline btn-sm" onclick="nextM()"><i class="fa-solid fa-chevron-right"></i></button>
+      </div>
+      <div class="cal-grid" style="margin-bottom:4px">
+        <div class="cdh">Dom</div><div class="cdh">Seg</div><div class="cdh">Ter</div>
+        <div class="cdh">Qua</div><div class="cdh">Qui</div><div class="cdh">Sex</div><div class="cdh">Sáb</div>
+      </div>
+      <div class="cal-grid" id="cal-body"></div>
+    </div>
+  </div>
+</div>
+
+<!-- HORÁRIOS -->
+<div class="sec" id="sec-horarios">
+  <div class="ph"><div class="container"><h1>Disponibilidade por dia</h1><p>Selecione uma data para visualizar os horários livres e ocupados</p></div></div>
+  <div class="container pb">
+    <div class="sl-hd">
+      <h2 id="sl-title">Horários do dia</h2>
+      <div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap">
+        <input type="date" class="fc" id="slt-date" style="max-width:170px" onchange="renderSlots()">
+        <button class="btn btn-primary btn-sm" onclick="nav('reservar')"><i class="fa-solid fa-plus"></i> Reservar este dia</button>
+      </div>
+    </div>
+    <div class="slc" id="slc"></div>
+  </div>
+</div>
+
+<!-- RESERVAR -->
+<div class="sec" id="sec-reservar">
+  <div class="ph"><div class="container"><h1 id="form-sec-title">Solicitar reserva</h1><p>Preencha o formulário. Sua solicitação será analisada pelo DED em até 48h.</p></div></div>
+  <div class="container pb">
+    <div class="card" style="padding:28px">
+      <div id="ca" class="ca"><p id="ca-txt"></p></div>
+      <div class="frow">
+        <div class="fg"><label class="fl">Nome completo <span class="req">*</span></label><input type="text" class="fc" id="f-nome" placeholder="Seu nome completo"></div>
+        <div class="fg"><label class="fl">E-mail institucional <span class="req">*</span></label><input type="email" class="fc" id="f-email" placeholder="voce@unifap.edu.br"></div>
+        <div class="fg"><label class="fl">Telefone/WhatsApp</label><input type="tel" class="fc" id="f-tel" placeholder="(96) 99999-9999"></div>
+        <div class="fg"><label class="fl">Vínculo com a UNIFAP <span class="req">*</span></label>
+          <select class="fc" id="f-vinculo">
+            <option value="">Selecione...</option>
+            <option>Docente</option><option>Discente</option>
+            <option>Técnico-administrativo</option><option>Externo (comunidade)</option>
+          </select>
+        </div>
+        <div class="fg ffull"><label class="fl">Departamento / Curso</label><input type="text" class="fc" id="f-depto" placeholder="Ex: DED — Licenciatura em Pedagogia"></div>
+        <div class="fg"><label class="fl">Tipo de evento <span class="req">*</span></label>
+          <select class="fc" id="f-tipo">
+            <option value="">Selecione...</option>
+            <option>Aula / Atividade pedagógica</option>
+            <option>Defesa de TCC / Dissertação / Tese</option>
+            <option>Palestra / Conferência</option>
+            <option>Seminário / Simpósio</option>
+            <option>Reunião</option><option>Evento cultural</option><option>Evento externo</option><option>Outro</option>
+          </select>
+        </div>
+        <div class="fg"><label class="fl">Nº de participantes <span class="req">*</span></label><input type="number" class="fc" id="f-part" min="1" max="120" placeholder="Máx. 120 pessoas"></div>
+        <div class="fg ffull"><label class="fl">Título do evento <span class="req">*</span></label><input type="text" class="fc" id="f-titulo" placeholder="Ex: Palestra sobre Metodologias Ativas no Ensino Superior"></div>
+        <div class="fg"><label class="fl">Data <span class="req">*</span></label><input type="date" class="fc" id="f-data" onchange="chkConflict()"></div>
+        <div class="fg"><label class="fl">Horário de início <span class="req">*</span></label>
+          <select class="fc" id="f-ini" onchange="updFim();chkConflict()"><option value="">Selecione...</option></select>
+        </div>
+        <div class="fg"><label class="fl">Horário de término <span class="req">*</span></label>
+          <select class="fc" id="f-fim" onchange="chkConflict()"><option value="">Selecione...</option></select>
+        </div>
+        <div class="fg ffull"><label class="fl">Recursos necessários</label><div class="cbgrid" id="rec-container"></div></div>
+        <div class="fg ffull"><label class="fl">Observações adicionais</label><textarea class="fc" id="f-obs" placeholder="Necessidades especiais, organização do espaço, etc."></textarea></div>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:20px;padding-top:18px;border-top:1px solid var(--g100)">
+        <button class="btn btn-primary" onclick="submitR()"><i class="fa-solid fa-paper-plane"></i> Enviar solicitação</button>
+        <button class="btn btn-outline" onclick="clearF()"><i class="fa-solid fa-rotate"></i> Limpar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CONSULTAR -->
+<div class="sec" id="sec-consultar">
+  <div class="ph"><div class="container"><h1>Consultar minha reserva</h1><p>Informe seu e-mail ou o número da reserva para consultar o status</p></div></div>
+  <div class="container pb">
+    <div class="card" style="padding:28px;max-width:560px">
+      <div class="fg"><label class="fl">E-mail ou número da reserva</label>
+        <div style="display:flex;gap:9px">
+          <input type="text" class="fc" id="c-input" placeholder="Ex: joao@unifap.edu.br  ou  DED-2025-001" onkeydown="if(event.key==='Enter')consultar()">
+          <button class="btn btn-primary" onclick="consultar()"><i class="fa-solid fa-magnifying-glass"></i></button>
+        </div>
+        <div class="fhint">Número da reserva: enviado por e-mail após o agendamento.</div>
+      </div>
+    </div>
+    <div id="c-results" style="display:none;margin-top:20px"><div class="rlist" id="c-list"></div></div>
+  </div>
+</div>
+
+<!-- ADMINISTRAÇÃO -->
+<div class="sec" id="sec-admin">
+  <div id="adm-login-wall">
+    <div class="container"><div class="pw-wall">
+      <div class="pw-icon"><i class="fa-solid fa-shield-halved"></i></div>
+      <h3>Painel Administrativo</h3>
+      <p>Acesso restrito ao secretariado do DED. Informe a senha para homologar reservas.</p>
+      <input type="password" class="fc" id="pw-wall-in" placeholder="Senha do administrador" style="text-align:center;margin-bottom:12px" onkeydown="if(event.key==='Enter')tryLoginWall()">
+      <button class="btn btn-primary btn-block" onclick="tryLoginWall()"><i class="fa-solid fa-arrow-right-to-bracket"></i> Entrar</button>
+      <div id="pw-wall-err" style="color:var(--err);font-size:12px;margin-top:8px;min-height:16px"></div>
+    </div></div>
+  </div>
+  <div id="adm-panel" style="display:none">
+    <div class="ph">
+      <div class="container" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+        <div><h1>Painel Administrativo</h1><p>Homologação de reservas — DED/UNIFAP</p></div>
+        <div style="display:flex;gap:9px;flex-wrap:wrap">
+          <button class="btn btn-sm no-print" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3)" onclick="om('m-chpw')"><i class="fa-solid fa-key"></i> Alterar senha</button>
+          <button class="btn btn-sm no-print" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3)" onclick="logout()"><i class="fa-solid fa-arrow-right-from-bracket"></i> Sair</button>
+        </div>
+      </div>
+    </div>
+    <div class="container pb">
+      <div class="stgrid">
+        <div class="stcard tot"><div class="n" id="st-tot">0</div><div class="l">Total de reservas</div></div>
+        <div class="stcard pen"><div class="n" id="st-pen">0</div><div class="l">Pendentes</div></div>
+        <div class="stcard con"><div class="n" id="st-con">0</div><div class="l">Confirmadas</div></div>
+        <div class="stcard can"><div class="n" id="st-can">0</div><div class="l">Canceladas</div></div>
+      </div>
+      <div class="fbar">
+        <input id="a-srch" placeholder="Buscar por nome, evento ou número..." oninput="renderAdm()">
+        <select id="a-st" onchange="renderAdm()">
+          <option value="">Todos os status</option>
+          <option value="pendente">Pendente</option>
+          <option value="confirmado">Confirmado</option>
+          <option value="cancelado">Cancelado</option>
+        </select>
+        <select id="a-mes" onchange="renderAdm()">
+          <option value="">Todos os meses</option>
+        </select>
+      </div>
+      <div class="rlist" id="adm-list"></div>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<!-- FOOTER -->
+<footer>
+  <div class="container">
+    <div>
+      <strong style="color:var(--g200)">DED — UNIFAP</strong> · Sistema de Agendamento do Auditório
+    </div>
+    <div style="display:flex;align-items:center;gap:14px">
+      <span id="ftr-mode" class="mode-ind loc" style="font-size:11px"><span class="mdot"></span>Modo local</span>
+      <a href="#" onclick="om('m-setup');return false" style="color:var(--g400);font-size:12px"><i class="fa-brands fa-google" style="margin-right:4px"></i>Configurar Firebase</a>
+    </div>
+  </div>
+</footer>
+
+<!-- ===================== SCRIPT ===================== -->
+<script>
+'use strict';
+
+/* ============================================================
+   ⚙️  CONFIGURAÇÃO FIREBASE — EDITE AQUI
+   Substitua os valores abaixo pelos do seu projeto Firebase.
+   Acesse: console.firebase.google.com
+   ============================================================ */
+const FIREBASE_CONFIG = {
+  apiKey: "SUA_API_KEY",
+  authDomain: "seu-projeto.firebaseapp.com",
+  projectId: "seu-projeto-id",
+  storageBucket: "seu-projeto.appspot.com",
+  messagingSenderId: "000000000000",
+  appId: "1:000000000000:web:abc123abc123abc123"
+};
+
+/* ============================================================
+   CONSTANTES
+   ============================================================ */
+const HORAS = ['08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00','21:00','22:00'];
+const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const DIAS  = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+const RECURSOS = ['Projetor/Datashow','Microfone wireless','Sistema de som','Computador','Câmera/Transmissão ao vivo','Cadeiras extras','Mesa para palestrantes','Internet Wi-Fi dedicado','Ar-condicionado extra'];
+const LS_KEY   = 'ded_reservas_v3';
+const LS_PW    = 'ded_pw_v3';
+const SS_ADM   = 'ded_adm_session';
+const DEFAULT_PW = 'DED@2025';
+
+/* ============================================================
+   ESTADO
+   ============================================================ */
+const S = {
+  reservas: [],
+  curM: new Date().getMonth(),
+  curY: new Date().getFullYear(),
+  selDate: today(),
+  adminOk: false,
+  editId: null,
+  fbReady: false,
+  unsub: null,
+  curSec: 'inicio'
+};
+
+let db = null;
+const fbConf = () => FIREBASE_CONFIG.apiKey !== 'SUA_API_KEY';
+
+/* ============================================================
+   UTILS
+   ============================================================ */
+function today() {
+  return new Date().toISOString().slice(0,10);
+}
+function t2m(t) {
+  const [h,m] = t.split(':').map(Number);
+  return h*60+m;
+}
+function fmtDate(ds) {
+  const d = new Date(ds+'T12:00:00');
+  return DIAS[d.getDay()]+', '+d.getDate()+' de '+MESES[d.getMonth()]+' de '+d.getFullYear();
+}
+function mkId() {
+  return 'r'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+}
+function mkNum() {
+  const y = new Date().getFullYear();
+  const n = S.reservas.filter(r => (r.numero||'').startsWith('DED-'+y)).length + 1;
+  return `DED-${y}-${String(n).padStart(3,'0')}`;
+}
+async function sha(s) {
+  const d = new TextEncoder().encode(s+'__ded_unifap_salt__');
+  const h = await crypto.subtle.digest('SHA-256', d);
+  return Array.from(new Uint8Array(h)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+function badge(st) {
+  const m = {
+    pendente:'<span class="badge badge-pendente"><i class="fa-regular fa-clock"></i> Pendente</span>',
+    confirmado:'<span class="badge badge-confirmado"><i class="fa-solid fa-check"></i> Confirmado</span>',
+    cancelado:'<span class="badge badge-cancelado"><i class="fa-solid fa-ban"></i> Cancelado</span>'
+  };
+  return m[st]||'';
+}
+
+/* ============================================================
+   TOAST / LOADING
+   ============================================================ */
+function toast(msg, type='') {
+  const ic = {ok:'fa-circle-check',err:'fa-circle-exclamation',warn:'fa-triangle-exclamation'};
+  const el = document.createElement('div');
+  el.className = 'toast '+(type||'');
+  el.innerHTML = `<i class="fa-solid ${ic[type]||'fa-circle-info'}"></i> ${msg}`;
+  document.getElementById('toasts').appendChild(el);
+  setTimeout(()=>{ el.style.animation='sout .3s ease forwards'; setTimeout(()=>el.remove(),300); }, 4500);
+}
+function showLoad() { document.getElementById('lov').classList.add('on'); }
+function hideLoad() { document.getElementById('lov').classList.remove('on'); }
+
+/* ============================================================
+   SYNC INDICATOR
+   ============================================================ */
+function setSyncing(v) {
+  const dot = document.getElementById('sdot');
+  const txt = document.getElementById('stxt');
+  dot.className = 'sync-dot'+(v?' spin':'');
+  txt.textContent = v ? 'Sincronizando...' : 'Atualizado · '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+}
+function setMode(fb) {
+  const cls = fb ? 'fb' : 'loc';
+  const lbl = fb ? '<span class="mdot"></span>Firebase ativo' : '<span class="mdot"></span>Modo local';
+  ['mode-indicator','ftr-mode'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el){ el.className='mode-ind '+cls; el.innerHTML=lbl; }
+  });
+}
+
+/* ============================================================
+   FIREBASE
+   ============================================================ */
+function startListener() {
+  if(S.unsub) S.unsub();
+  S.unsub = db.collection('reservas')
+    .orderBy('criadoEm','desc')
+    .onSnapshot(snap => {
+      S.reservas = snap.docs.map(d => ({id:d.id,...d.data()}));
+      setSyncing(false);
+      refresh();
+    }, err => {
+      console.warn('Firestore:', err.message);
+      loadLS();
+    });
+}
+
+async function fbSave(r) {
+  await db.collection('reservas').doc(r.id).set(r);
+}
+async function fbUpdate(id, data) {
+  await db.collection('reservas').doc(id).update(data);
+}
+
+/* ============================================================
+   LOCALSTORAGE
+   ============================================================ */
+function loadLS() {
+  try {
+    const d = localStorage.getItem(LS_KEY);
+    S.reservas = d ? JSON.parse(d) : demo();
+    if(!d) saveLS();
+  } catch(e) { S.reservas = demo(); }
+  setSyncing(false);
+  refresh();
+}
+function saveLS() {
+  localStorage.setItem(LS_KEY, JSON.stringify(S.reservas));
+}
+function demo() {
+  const fmt = n => { const d=new Date(); while(d.getDay()===0)d.setDate(d.getDate()+1); d.setDate(d.getDate()+n); while(d.getDay()===0)d.setDate(d.getDate()+1); return d.toISOString().slice(0,10); };
+  const y = new Date().getFullYear();
+  return [
+    {id:'d1',numero:`DED-${y}-001`,nome:'Profa. Ana Lima',email:'ana.lima@unifap.edu.br',tel:'(96) 98123-4567',vinculo:'Docente',depto:'DED — Pedagogia',tipo:'Defesa de TCC / Dissertação / Tese',titulo:'Defesa de TCC — Educação Inclusiva e Práticas Pedagógicas',data:fmt(2),horaInicio:'08:00',horaFim:'10:00',partic:40,recursos:['Projetor/Datashow','Microfone wireless'],obs:'',status:'confirmado',criadoEm:new Date().toISOString(),atualizadoEm:new Date().toISOString(),obsAdmin:''},
+    {id:'d2',numero:`DED-${y}-002`,nome:'Maria Eduarda Santos',email:'mariaeduarda@unifap.edu.br',tel:'',vinculo:'Discente',depto:'DED — Letras',tipo:'Seminário / Simpósio',titulo:'II Seminário de Práticas Pedagógicas Inovadoras',data:fmt(5),horaInicio:'14:00',horaFim:'18:00',partic:80,recursos:['Projetor/Datashow','Sistema de som','Microfone wireless'],obs:'Organizar cadeiras em semicírculo.',status:'pendente',criadoEm:new Date().toISOString(),atualizadoEm:new Date().toISOString(),obsAdmin:''},
+    {id:'d3',numero:`DED-${y}-003`,nome:'Prof. Carlos Mendes',email:'c.mendes@unifap.edu.br',tel:'(96) 99876-5432',vinculo:'Docente',depto:'DED — Matemática',tipo:'Palestra / Conferência',titulo:'Tecnologias Digitais no Ensino da Matemática',data:fmt(10),horaInicio:'19:00',horaFim:'22:00',partic:110,recursos:['Projetor/Datashow','Microfone wireless','Sistema de som','Câmera/Transmissão ao vivo'],obs:'Transmissão ao vivo pelo YouTube do DED.',status:'pendente',criadoEm:new Date().toISOString(),atualizadoEm:new Date().toISOString(),obsAdmin:''}
+  ];
+}
+
+/* ============================================================
+   CRUD
+   ============================================================ */
+async function saveR(r) {
+  if(S.fbReady){ await fbSave(r); }
+  else {
+    const i = S.reservas.findIndex(x=>x.id===r.id);
+    if(i>=0) S.reservas[i]=r; else S.reservas.unshift(r);
+    saveLS(); refresh();
+  }
+}
+async function updStatus(id, status, obsAdmin='') {
+  const now = new Date().toISOString();
+  if(S.fbReady){ await fbUpdate(id,{status,obsAdmin,atualizadoEm:now}); }
+  else {
+    const r = S.reservas.find(x=>x.id===id);
+    if(r){r.status=status;r.obsAdmin=obsAdmin;r.atualizadoEm=now;}
+    saveLS(); refresh();
+  }
+}
+
+/* ============================================================
+   ROUTER
+   ============================================================ */
+function nav(sec, push=true) {
+  const valid = ['inicio','calendario','horarios','reservar','consultar','admin'];
+  if(!valid.includes(sec)) sec='inicio';
+  if(sec==='admin' && !S.adminOk){ om('m-login'); return; }
+  document.querySelectorAll('.sec').forEach(s=>s.classList.remove('active'));
+  const el = document.getElementById('sec-'+sec);
+  if(el) el.classList.add('active');
+  document.querySelectorAll('.nav-links a[data-s]').forEach(a=>{
+    a.classList.toggle('active', a.dataset.s===sec);
+  });
+  if(push) window.location.hash=sec;
+  S.curSec=sec;
+  document.querySelector('.nav-links')?.classList.remove('open');
+  switch(sec){
+    case 'inicio': renderHome(); break;
+    case 'calendario': renderCal(); break;
+    case 'horarios': renderSlots(); break;
+    case 'reservar': break;
+    case 'admin': renderAdm(); break;
+  }
+}
+function navAdmin() {
+  if(S.adminOk) nav('admin');
+  else om('m-login');
+}
+function refresh() {
+  switch(S.curSec){
+    case 'inicio': renderHome(); break;
+    case 'calendario': renderCal(); break;
+    case 'horarios': renderSlots(); break;
+    case 'admin': if(S.adminOk) renderAdm(); break;
+  }
+}
+
+/* ============================================================
+   HOME
+   ============================================================ */
+function renderHome() {
+  const act = S.reservas.filter(r=>r.status!=='cancelado');
+  document.getElementById('hs-total').textContent = act.length;
+  document.getElementById('hs-pend').textContent = S.reservas.filter(r=>r.status==='pendente').length;
+  document.getElementById('hs-conf').textContent = S.reservas.filter(r=>r.status==='confirmado').length;
+  const td = today();
+  const upcoming = S.reservas.filter(r=>r.data>=td&&r.status!=='cancelado')
+    .sort((a,b)=>a.data.localeCompare(b.data)||a.horaInicio.localeCompare(b.horaInicio))
+    .slice(0,6);
+  const c = document.getElementById('upcoming-list');
+  if(!upcoming.length){
+    c.innerHTML='<div class="empty"><i class="fa-regular fa-calendar-xmark"></i><p>Nenhum evento futuro agendado.</p></div>';
+    return;
+  }
+  c.innerHTML = upcoming.map(r=>`
+    <div class="rcard" style="margin-bottom:9px">
+      <div class="rcard-hd"><div>
+        <div class="rcard-title">${r.titulo}</div>
+        <div class="rcard-sub">${r.nome} · ${r.vinculo}</div>
+      </div>${badge(r.status)}</div>
+      <div class="rmeta">
+        <div class="rmi"><i class="fa-regular fa-calendar"></i>${fmtDate(r.data)}</div>
+        <div class="rmi"><i class="fa-regular fa-clock"></i>${r.horaInicio}–${r.horaFim}</div>
+        <div class="rmi"><i class="fa-regular fa-user"></i>${r.partic} part.</div>
+      </div>
+      <div class="rack"><button class="btn btn-ghost btn-sm" onclick="showDetail('${r.id}')"><i class="fa-regular fa-eye"></i> Detalhes</button></div>
+    </div>`).join('');
+}
+
+/* ============================================================
+   CALENDAR
+   ============================================================ */
+function renderCal() {
+  document.getElementById('cal-mon').textContent = MESES[S.curM]+' '+S.curY;
+  const body = document.getElementById('cal-body');
+  body.innerHTML='';
+  const first = new Date(S.curY,S.curM,1);
+  const last  = new Date(S.curY,S.curM+1,0);
+  const td = today();
+  for(let i=0;i<first.getDay();i++){
+    const d=new Date(S.curY,S.curM,-(first.getDay()-1-i));
+    body.appendChild(mkDay(d,true));
+  }
+  for(let d=1;d<=last.getDate();d++) body.appendChild(mkDay(new Date(S.curY,S.curM,d),false));
+  const rem=42-(first.getDay()+last.getDate());
+  for(let i=1;i<=rem;i++) body.appendChild(mkDay(new Date(S.curY,S.curM+1,i),true));
+}
+function mkDay(date,other){
+  const ds=date.toISOString().slice(0,10);
+  const isSun=date.getDay()===0;
+  const isToday=ds===today();
+  const isSel=ds===S.selDate;
+  const cell=document.createElement('div');
+  const cls=['cd'];
+  if(other)cls.push('cd-o');
+  if(isSun)cls.push('cd-sun');
+  if(isToday)cls.push('cd-today');
+  if(isSel&&!other&&!isSun)cls.push('cd-sel');
+  cell.className=cls.join(' ');
+  const dr=S.reservas.filter(r=>r.data===ds);
+  const evts=dr.slice(0,2).map(r=>`<div class="cdev ${r.status}" title="${r.titulo}">${r.titulo}</div>`).join('');
+  const more=dr.length>2?`<div class="cdmore">+${dr.length-2} mais</div>`:'';
+  cell.innerHTML=`<div class="cdn">${date.getDate()}</div><div class="cdevts">${evts}${more}</div>`;
+  if(!other&&!isSun){
+    cell.onclick=()=>{
+      S.selDate=ds;
+      document.getElementById('slt-date').value=ds;
+      nav('horarios');
+    };
+  }
+  return cell;
+}
+function prevM(){S.curM--;if(S.curM<0){S.curM=11;S.curY--;}renderCal();}
+function nextM(){S.curM++;if(S.curM>11){S.curM=0;S.curY++;}renderCal();}
+
+/* ============================================================
+   SLOTS
+   ============================================================ */
+function renderSlots() {
+  const di=document.getElementById('slt-date');
+  if(!di.value){ const t=new Date(); if(t.getDay()===0)t.setDate(t.getDate()+1); di.value=t.toISOString().slice(0,10); }
+  const ds=di.value;
+  const dt=new Date(ds+'T12:00:00');
+  const dow=dt.getDay();
+  document.getElementById('sl-title').textContent=DIAS[dow]+', '+dt.getDate()+' de '+MESES[dt.getMonth()]+' de '+dt.getFullYear();
+  const c=document.getElementById('slc'); c.innerHTML='';
+  if(dow===0){c.innerHTML='<div class="empty"><i class="fa-solid fa-ban"></i><p>Sem agendamento aos domingos.</p></div>';return;}
+  const dr=S.reservas.filter(r=>r.data===ds&&r.status!=='cancelado');
+  for(let i=0;i<HORAS.length-1;i++){
+    const h=HORAS[i];
+    const row=document.createElement('div'); row.className='slr';
+    const bk=dr.find(r=>t2m(r.horaInicio)<=t2m(h)&&t2m(r.horaFim)>t2m(h));
+    let sc;
+    if(bk){
+      sc=`<div class="slc-content bk bk-${bk.status}" onclick="showDetail('${bk.id}')">
+        <div><div class="sl-etitle">${bk.titulo}</div>
+        <div class="sl-emeta">${bk.nome} · ${bk.horaInicio}–${bk.horaFim} · ${bk.partic} participantes · ${badge(bk.status)}</div></div></div>`;
+    } else {
+      sc=`<div class="slc-content" onclick="slotBook('${ds}','${h}')">
+        <div class="sl-avail"><i class="fa-regular fa-square-plus"></i> Disponível — clique para reservar</div></div>`;
+    }
+    row.innerHTML=`<div class="slt-lbl">${h}</div>`+sc;
+    c.appendChild(row);
+  }
+}
+function slotBook(date,h){
+  document.getElementById('f-data').value=date;
+  document.getElementById('f-ini').value=h;
+  updFim(); nav('reservar');
+}
+
+/* ============================================================
+   FORM
+   ============================================================ */
+function setupForm(){
+  const fi=document.getElementById('f-ini');
+  fi.innerHTML='<option value="">Selecione...</option>';
+  HORAS.slice(0,-1).forEach(h=>{const o=document.createElement('option');o.value=h;o.textContent=h;fi.appendChild(o);});
+  const rc=document.getElementById('rec-container');
+  rc.innerHTML='';
+  RECURSOS.forEach(r=>{
+    const l=document.createElement('label');l.className='cbi';
+    l.innerHTML=`<input type="checkbox" value="${r}"> ${r}`;
+    l.querySelector('input').addEventListener('change',function(){l.classList.toggle('on',this.checked);});
+    rc.appendChild(l);
+  });
+}
+function updFim(){
+  const ini=document.getElementById('f-ini').value;
+  const ff=document.getElementById('f-fim');
+  ff.innerHTML='<option value="">Selecione...</option>';
+  if(!ini)return;
+  HORAS.slice(HORAS.indexOf(ini)+1).forEach(h=>{const o=document.createElement('option');o.value=h;o.textContent=h;ff.appendChild(o);});
+  chkConflict();
+}
+function chkConflict(){
+  const data=document.getElementById('f-data').value;
+  const ini=document.getElementById('f-ini').value;
+  const fim=document.getElementById('f-fim').value;
+  const ca=document.getElementById('ca');
+  const ct=document.getElementById('ca-txt');
+  if(!data||!ini||!fim){ca.style.display='none';return;}
+  const dt=new Date(data+'T12:00:00');
+  if(dt.getDay()===0){ct.textContent='Domingos não estão disponíveis para agendamento.';ca.style.display='block';return;}
+  const cf=S.reservas.find(r=>r.data===data&&r.status!=='cancelado'&&r.id!==(S.editId||'')&&t2m(r.horaInicio)<t2m(fim)&&t2m(r.horaFim)>t2m(ini));
+  if(cf){ct.textContent=`Conflito: "${cf.titulo}" já está agendado das ${cf.horaInicio} às ${cf.horaFim}.`;ca.style.display='block';}
+  else ca.style.display='none';
+}
+async function submitR(){
+  const g=id=>document.getElementById(id).value.trim();
+  const nome=g('f-nome'),email=g('f-email'),tel=g('f-tel');
+  const vinculo=document.getElementById('f-vinculo').value;
+  const depto=g('f-depto'),tipo=document.getElementById('f-tipo').value;
+  const titulo=g('f-titulo'),data=g('f-data');
+  const ini=document.getElementById('f-ini').value,fim=document.getElementById('f-fim').value;
+  const partic=parseInt(document.getElementById('f-part').value)||0;
+  const obs=g('f-obs');
+  if(!nome||!email||!vinculo||!tipo||!titulo||!data||!ini||!fim){toast('Preencha todos os campos obrigatórios (*)','err');return;}
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){toast('Informe um e-mail válido.','err');return;}
+  if(partic<1||partic>120){toast('Participantes: entre 1 e 120.','err');return;}
+  const dt=new Date(data+'T12:00:00');
+  if(dt.getDay()===0){toast('Domingos não disponíveis.','err');return;}
+  const cf=S.reservas.find(r=>r.data===data&&r.status!=='cancelado'&&r.id!==(S.editId||'')&&t2m(r.horaInicio)<t2m(fim)&&t2m(r.horaFim)>t2m(ini));
+  if(cf){toast('Conflito de horário com outra reserva.','err');return;}
+  const recursos=[...document.querySelectorAll('#rec-container input:checked')].map(c=>c.value);
+  const now=new Date().toISOString();
+  showLoad();
+  try{
+    if(S.editId){
+      const r=S.reservas.find(x=>x.id===S.editId);
+      const up={...r,nome,email,tel,vinculo,depto,tipo,titulo,data,horaInicio:ini,horaFim:fim,partic,recursos,obs,status:'pendente',atualizadoEm:now};
+      await saveR(up);
+      toast('Reserva atualizada com sucesso!','ok');
+      S.editId=null;
+      document.getElementById('form-sec-title').textContent='Solicitar reserva';
+    } else {
+      const id=mkId(), numero=mkNum();
+      await saveR({id,numero,nome,email,tel,vinculo,depto,tipo,titulo,data,horaInicio:ini,horaFim:fim,partic,recursos,obs,status:'pendente',criadoEm:now,atualizadoEm:now,obsAdmin:''});
+      toast(`Solicitação enviada! Nº ${numero}. Aguarde confirmação do DED.`,'ok');
+    }
+    clearF(); nav('consultar');
+  }catch(e){toast('Erro ao salvar. Tente novamente.','err');}
+  hideLoad();
+}
+function clearF(){
+  ['f-nome','f-email','f-tel','f-depto','f-titulo','f-data','f-obs','f-part'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['f-vinculo','f-tipo','f-ini','f-fim'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  document.querySelectorAll('#rec-container input').forEach(c=>{c.checked=false;c.closest('label').classList.remove('on');});
+  document.getElementById('ca').style.display='none';
+  S.editId=null;
+  document.getElementById('form-sec-title').textContent='Solicitar reserva';
+}
+
+/* ============================================================
+   CONSULTAR
+   ============================================================ */
+function consultar(){
+  const q=document.getElementById('c-input').value.trim().toLowerCase();
+  if(!q){toast('Informe seu e-mail ou número da reserva.','warn');return;}
+  const res=S.reservas.filter(r=>r.email.toLowerCase()===q||r.numero.toLowerCase()===q);
+  const wrap=document.getElementById('c-results');
+  const list=document.getElementById('c-list');
+  wrap.style.display='block';
+  if(!res.length){list.innerHTML='<div class="empty"><i class="fa-regular fa-face-meh"></i><p>Nenhuma reserva encontrada para este e-mail ou número.</p></div>';return;}
+  list.innerHTML=res.map(r=>mkCard(r,false)).join('');
+}
+
+/* ============================================================
+   ADMIN
+   ============================================================ */
+function renderAdm(){
+  updStats();
+  const srch=document.getElementById('a-srch').value.toLowerCase();
+  const st=document.getElementById('a-st').value;
+  const mes=document.getElementById('a-mes').value;
+  const list=S.reservas.filter(r=>{
+    if(st&&r.status!==st)return false;
+    if(mes&&r.data.slice(0,7)!==mes)return false;
+    if(srch&&!r.nome.toLowerCase().includes(srch)&&!r.titulo.toLowerCase().includes(srch)&&!(r.numero||'').toLowerCase().includes(srch))return false;
+    return true;
+  }).sort((a,b)=>a.data.localeCompare(b.data)||a.horaInicio.localeCompare(b.horaInicio));
+  const c=document.getElementById('adm-list');
+  if(!list.length){c.innerHTML='<div class="empty"><i class="fa-regular fa-calendar-xmark"></i><p>Nenhuma reserva encontrada.</p></div>';return;}
+  c.innerHTML=list.map(r=>mkCard(r,true)).join('');
+}
+function updStats(){
+  document.getElementById('st-tot').textContent=S.reservas.length;
+  document.getElementById('st-pen').textContent=S.reservas.filter(r=>r.status==='pendente').length;
+  document.getElementById('st-con').textContent=S.reservas.filter(r=>r.status==='confirmado').length;
+  document.getElementById('st-can').textContent=S.reservas.filter(r=>r.status==='cancelado').length;
+  const sel=document.getElementById('a-mes');
+  const cur=sel.value;
+  const ms=[...new Set(S.reservas.map(r=>r.data.slice(0,7)))].sort().reverse();
+  sel.innerHTML='<option value="">Todos os meses</option>';
+  ms.forEach(m=>{const[y,mo]=m.split('-');const o=document.createElement('option');o.value=m;o.textContent=MESES[parseInt(mo)-1]+' '+y;sel.appendChild(o);});
+  if(cur)sel.value=cur;
+}
+
+/* ============================================================
+   CARD HTML
+   ============================================================ */
+function mkCard(r,isAdm){
+  const admActs = isAdm ? `
+    ${r.status==='pendente'?`<button class="btn btn-ok btn-sm" onclick="confirmR('${r.id}')"><i class="fa-solid fa-check"></i> Confirmar</button>`:''}
+    ${r.status==='confirmado'?`<button class="btn btn-outline btn-sm" onclick="setPend('${r.id}')"><i class="fa-solid fa-rotate-left"></i> Reverter</button>`:''}
+    ${r.status!=='cancelado'?`<button class="btn btn-danger btn-sm" onclick="cancelR('${r.id}')"><i class="fa-solid fa-ban"></i> Cancelar</button>`:''}
+    <button class="btn btn-outline btn-sm" onclick="editR('${r.id}')"><i class="fa-regular fa-pen-to-square"></i> Editar</button>
+  `:'';
+  const pubActs = !isAdm&&r.status!=='cancelado'
+    ? `<button class="btn btn-outline btn-sm" onclick="cancelR('${r.id}')"><i class="fa-solid fa-ban"></i> Cancelar</button>`:' ';
+  return `<div class="rcard">
+    <div class="rcard-hd"><div>
+      <div style="display:flex;align-items:center;gap:7px;margin-bottom:4px"><span class="rnum">${r.numero||'—'}</span>${badge(r.status)}</div>
+      <div class="rcard-title">${r.titulo}</div>
+      <div class="rcard-sub">${r.nome} · ${r.vinculo}${r.depto?' · '+r.depto:''}</div>
+    </div></div>
+    <div class="rmeta">
+      <div class="rmi"><i class="fa-regular fa-calendar"></i>${fmtDate(r.data)}</div>
+      <div class="rmi"><i class="fa-regular fa-clock"></i>${r.horaInicio}–${r.horaFim}</div>
+      <div class="rmi"><i class="fa-regular fa-user"></i>${r.partic} participantes</div>
+      <div class="rmi"><i class="fa-regular fa-bookmark"></i>${r.tipo}</div>
+    </div>
+    ${r.recursos&&r.recursos.length?`<div class="rmi" style="margin-bottom:8px;font-size:11px"><i class="fa-solid fa-screwdriver-wrench" style="color:var(--g400)"></i>${r.recursos.join(' · ')}</div>`:''}
+    ${r.obsAdmin?`<div class="obs-box"><strong>Obs. DED:</strong> ${r.obsAdmin}</div>`:''}
+    <div class="rack"><button class="btn btn-ghost btn-sm" onclick="showDetail('${r.id}')"><i class="fa-regular fa-eye"></i> Detalhes</button>${admActs}${pubActs}</div>
+  </div>`;
+}
+
+/* ============================================================
+   ADMIN ACTIONS
+   ============================================================ */
+async function confirmR(id){
+  const obs = prompt('Observação para o solicitante (opcional):') || '';
+  showLoad();
+  try{ await updStatus(id,'confirmado',obs); toast('Reserva confirmada!','ok'); }
+  catch(e){ toast('Erro ao confirmar.','err'); }
+  hideLoad(); if(S.adminOk) renderAdm();
+}
+async function setPend(id){
+  if(!confirm('Reverter esta reserva para pendente?'))return;
+  showLoad();
+  try{ await updStatus(id,'pendente',''); toast('Reserva revertida para pendente.','ok'); }
+  catch(e){ toast('Erro.','err'); }
+  hideLoad(); if(S.adminOk) renderAdm();
+}
+async function cancelR(id){
+  if(!confirm('Confirma o cancelamento desta reserva?'))return;
+  showLoad();
+  try{ await updStatus(id,'cancelado'); toast('Reserva cancelada.','ok'); }
+  catch(e){ toast('Erro ao cancelar.','err'); }
+  hideLoad();
+  if(S.adminOk) renderAdm(); else consultar();
+}
+function editR(id){
+  const r=S.reservas.find(x=>x.id===id); if(!r)return;
+  S.editId=id; nav('reservar');
+  setTimeout(()=>{
+    document.getElementById('form-sec-title').textContent='Editar reserva';
+    document.getElementById('f-nome').value=r.nome;
+    document.getElementById('f-email').value=r.email;
+    document.getElementById('f-tel').value=r.tel||'';
+    document.getElementById('f-vinculo').value=r.vinculo;
+    document.getElementById('f-depto').value=r.depto||'';
+    document.getElementById('f-tipo').value=r.tipo;
+    document.getElementById('f-titulo').value=r.titulo;
+    document.getElementById('f-data').value=r.data;
+    document.getElementById('f-ini').value=r.horaInicio;
+    updFim();
+    setTimeout(()=>{ document.getElementById('f-fim').value=r.horaFim; },60);
+    document.getElementById('f-part').value=r.partic;
+    document.getElementById('f-obs').value=r.obs||'';
+    document.querySelectorAll('#rec-container input').forEach(cb=>{
+      cb.checked=r.recursos&&r.recursos.includes(cb.value);
+      cb.closest('label').classList.toggle('on',cb.checked);
+    });
+    chkConflict();
+  },120);
+}
+
+/* ============================================================
+   DETAIL MODAL
+   ============================================================ */
+function showDetail(id){
+  const r=S.reservas.find(x=>x.id===id); if(!r)return;
+  document.getElementById('m-detail-title').textContent='Reserva '+r.numero;
+  document.getElementById('m-detail-bd').innerHTML=`
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:8px"><span class="rnum">${r.numero}</span>${badge(r.status)}</div>
+      <small style="color:var(--g500)">Solicitado em ${new Date(r.criadoEm).toLocaleDateString('pt-BR')}</small>
+    </div>
+    <div class="dgrid">
+      <div class="di di-full"><label>Título do evento</label><span style="font-size:16px;font-weight:600;color:var(--primary)">${r.titulo}</span></div>
+      <div class="di"><label>Tipo de evento</label><span>${r.tipo}</span></div>
+      <div class="di"><label>Nº de participantes</label><span>${r.partic} pessoas</span></div>
+      <div class="di"><label>Data</label><span>${fmtDate(r.data)}</span></div>
+      <div class="di"><label>Horário</label><span>${r.horaInicio} – ${r.horaFim}</span></div>
+      <div class="di"><label>Solicitante</label><span>${r.nome}</span></div>
+      <div class="di"><label>E-mail</label><span>${r.email}</span></div>
+      ${r.tel?`<div class="di"><label>Telefone</label><span>${r.tel}</span></div>`:''}
+      <div class="di"><label>Vínculo</label><span>${r.vinculo}</span></div>
+      ${r.depto?`<div class="di"><label>Departamento</label><span>${r.depto}</span></div>`:''}
+      ${r.recursos&&r.recursos.length?`<div class="di di-full"><label>Recursos solicitados</label><span>${r.recursos.join(' · ')}</span></div>`:''}
+      ${r.obs?`<div class="di di-full"><label>Observações do solicitante</label><span>${r.obs}</span></div>`:''}
+      ${r.obsAdmin?`<div class="di di-full"><label>Observação do DED</label><span style="color:var(--primary)">${r.obsAdmin}</span></div>`:''}
+    </div>`;
+  om('m-detail');
+}
+
+/* ============================================================
+   AUTH
+   ============================================================ */
+async function tryLogin(){
+  const pw=document.getElementById('pw-in').value;
+  if(!pw)return;
+  const h=await sha(pw);
+  const stored=localStorage.getItem(LS_PW);
+  if(h===stored){
+    S.adminOk=true; sessionStorage.setItem(SS_ADM,'1');
+    cm('m-login'); updAdmUI(); nav('admin');
+  } else {
+    document.getElementById('pw-err').textContent='Senha incorreta.';
+    document.getElementById('pw-in').value='';
+    document.getElementById('pw-in').focus();
+  }
+}
+async function tryLoginWall(){
+  const pw=document.getElementById('pw-wall-in').value;
+  if(!pw)return;
+  const h=await sha(pw);
+  const stored=localStorage.getItem(LS_PW);
+  if(h===stored){
+    S.adminOk=true; sessionStorage.setItem(SS_ADM,'1');
+    document.getElementById('adm-login-wall').style.display='none';
+    document.getElementById('adm-panel').style.display='block';
+    updAdmUI(); renderAdm();
+  } else {
+    document.getElementById('pw-wall-err').textContent='Senha incorreta.';
+    document.getElementById('pw-wall-in').value='';
+  }
+}
+function logout(){
+  S.adminOk=false; sessionStorage.removeItem(SS_ADM);
+  document.getElementById('adm-panel').style.display='none';
+  document.getElementById('adm-login-wall').style.display='block';
+  document.getElementById('pw-wall-in').value='';
+  document.getElementById('pw-wall-err').textContent='';
+  updAdmUI(); nav('inicio');
+}
+function updAdmUI(){
+  const btn=document.getElementById('nav-adm');
+  if(S.adminOk){btn.innerHTML='<i class="fa-solid fa-shield-halved"></i> Admin';btn.classList.add('logged');}
+  else{btn.innerHTML='<i class="fa-solid fa-lock"></i> Administração';btn.classList.remove('logged');}
+}
+async function chgPw(){
+  const cur=document.getElementById('pw-cur').value;
+  const n1=document.getElementById('pw-n1').value;
+  const n2=document.getElementById('pw-n2').value;
+  const msg=document.getElementById('pw-chg-msg');
+  if(!cur||!n1||!n2){msg.style.color='var(--err)';msg.textContent='Preencha todos os campos.';return;}
+  const ch=await sha(cur);
+  if(ch!==localStorage.getItem(LS_PW)){msg.style.color='var(--err)';msg.textContent='Senha atual incorreta.';return;}
+  if(n1!==n2){msg.style.color='var(--err)';msg.textContent='As novas senhas não coincidem.';return;}
+  if(n1.length<6){msg.style.color='var(--err)';msg.textContent='Mínimo 6 caracteres.';return;}
+  localStorage.setItem(LS_PW,await sha(n1));
+  if(S.fbReady){try{await db.collection('config').doc('admin').set({pwHash:await sha(n1)});}catch(e){}}
+  ['pw-cur','pw-n1','pw-n2'].forEach(id=>document.getElementById(id).value='');
+  msg.style.color='var(--ok)';msg.textContent='Senha alterada com sucesso!';
+  setTimeout(()=>{msg.textContent='';},4000);
+}
+
+/* ============================================================
+   MODALS
+   ============================================================ */
+function om(id){document.getElementById(id).classList.add('open');}
+function cm(id){document.getElementById(id).classList.remove('open');}
+window.addEventListener('click',e=>{ if(e.target.classList.contains('mbk')) e.target.classList.remove('open'); });
+
+/* ============================================================
+   HAMBURGER
+   ============================================================ */
+function toggleMenu(){ document.getElementById('nav-links').classList.toggle('open'); }
+
+/* ============================================================
+   INIT
+   ============================================================ */
+async function init(){
+  // Senha padrão
+  localStorage.setItem(LS_PW, await sha(DEFAULT_PW));
+
+  // Restaurar sessão admin
+  if(sessionStorage.getItem(SS_ADM)==='1'){
+    S.adminOk=true;
+    document.getElementById('adm-login-wall').style.display='none';
+    document.getElementById('adm-panel').style.display='block';
+    updAdmUI();
+  }
+
+  // Firebase ou localStorage
+  if(fbConf()){
+    try{
+      firebase.initializeApp(FIREBASE_CONFIG);
+      db=firebase.firestore();
+      S.fbReady=true;
+      setMode(true);
+      setSyncing(true);
+      startListener();
+    }catch(e){
+      console.warn('Firebase indisponível:',e.message);
+      loadLS(); setMode(false);
+      document.getElementById('setup-banner').style.display='flex';
+    }
+  } else {
+    loadLS(); setMode(false);
+    document.getElementById('setup-banner').style.display='flex';
+  }
+
+  // Setup form
+  setupForm();
+
+  // Data padrão em horários
+  const t=new Date(); if(t.getDay()===0)t.setDate(t.getDate()+1);
+  document.getElementById('slt-date').value=t.toISOString().slice(0,10);
+
+  // Router
+  const hash=window.location.hash.slice(1)||'inicio';
+  nav(hash,false);
+  window.addEventListener('hashchange',()=>nav(window.location.hash.slice(1)||'inicio',false));
+}
+
+document.addEventListener('DOMContentLoaded',init);
+</script>
+</body>
+</html>
