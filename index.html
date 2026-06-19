@@ -476,7 +476,6 @@ service cloud.firestore {
     <div class="leg">
       <div class="li"><div class="ld" style="background:#FEF3C7;border:1px solid #F59E0B"></div>Pendente (aguarda confirmação)</div>
       <div class="li"><div class="ld" style="background:#E8F5EE;border:1px solid #34D399"></div>Confirmado</div>
-      <div class="li"><div class="ld" style="background:#F3F4F6;border:1px solid #D1D5DB"></div>Cancelado</div>
       <div class="li"><div class="ld" style="border:2px solid var(--primary)"></div>Hoje</div>
     </div>
     <div class="card" style="padding:20px">
@@ -953,7 +952,7 @@ function mkDay(date,other){
   if(isToday)cls.push('cd-today');
   if(isSel&&!other&&!isSun)cls.push('cd-sel');
   cell.className=cls.join(' ');
-  const dr=S.reservas.filter(r=>r.data===ds);
+  const dr=S.reservas.filter(r=>r.data===ds&&r.status!=='cancelado');
   const evts=dr.slice(0,2).map(r=>`<div class="cdev ${r.status}" title="${r.titulo}">${r.titulo}</div>`).join('');
   const more=dr.length>2?`<div class="cdmore">+${dr.length-2} mais</div>`:'';
   cell.innerHTML=`<div class="cdn">${date.getDate()}</div><div class="cdevts">${evts}${more}</div>`;
