@@ -541,13 +541,21 @@ service cloud.firestore {
         </div>
         <div class="fg"><label class="fl">Nº de participantes <span class="req">*</span></label><input type="number" class="fc" id="f-part" min="1" max="120" placeholder="Máx. 120 pessoas"></div>
         <div class="fg ffull"><label class="fl">Título do evento <span class="req">*</span></label><input type="text" class="fc" id="f-titulo" placeholder="Ex: Palestra sobre Metodologias Ativas no Ensino Superior"></div>
-        <div class="fg"><label class="fl">Data <span class="req">*</span></label><input type="date" class="fc" id="f-data" onchange="chkConflict()"></div>
+        <div class="fg ffull">
+          <label class="cbi" style="width:fit-content" onclick="setTimeout(toggleMulti,0)">
+            <input type="checkbox" id="f-multi">
+            Este evento ocorre em mais de um dia
+          </label>
+        </div>
+        <div class="fg" id="f-data-wrap"><label class="fl" id="f-data-lbl">Data <span class="req">*</span></label><input type="date" class="fc" id="f-data" onchange="chkConflict()"></div>
+        <div class="fg" id="f-data-fim-wrap" style="display:none"><label class="fl">Data final <span class="req">*</span></label><input type="date" class="fc" id="f-data-fim" onchange="chkConflict()"></div>
         <div class="fg"><label class="fl">Horário de início <span class="req">*</span></label>
           <select class="fc" id="f-ini" onchange="updFim();chkConflict()"><option value="">Selecione...</option></select>
         </div>
         <div class="fg"><label class="fl">Horário de término <span class="req">*</span></label>
           <select class="fc" id="f-fim" onchange="chkConflict()"><option value="">Selecione...</option></select>
         </div>
+        <div class="fhint ffull" id="f-multi-hint" style="display:none;margin-top:-8px"><i class="fa-solid fa-circle-info"></i> O mesmo horário será reservado em todos os dias do período (domingos são ignorados automaticamente).</div>
         <div class="fg ffull"><label class="fl">Recursos necessários</label><div class="cbgrid" id="rec-container"></div></div>
         <div class="fg ffull"><label class="fl">Observações adicionais</label><textarea class="fc" id="f-obs" placeholder="Necessidades especiais, organização do espaço, etc."></textarea></div>
         <div class="fg ffull">
@@ -705,6 +713,15 @@ function fmtDate(ds) {
   const d = new Date(ds+'T12:00:00');
   return DIAS[d.getDay()]+', '+d.getDate()+' de '+MESES[d.getMonth()]+' de '+d.getFullYear();
 }
+function fmtPeriodo(r) {
+  const datas=getDatas(r);
+  if(datas.length<=1) return fmtDate(r.data);
+  const d1=new Date(datas[0]+'T12:00:00'), d2=new Date(datas[datas.length-1]+'T12:00:00');
+  const sameMonth=d1.getMonth()===d2.getMonth()&&d1.getFullYear()===d2.getFullYear();
+  const ini = d1.getDate()+(sameMonth?'':' de '+MESES[d1.getMonth()]);
+  const fimS = d2.getDate()+' de '+MESES[d2.getMonth()]+' de '+d2.getFullYear();
+  return `${ini} a ${fimS} · ${datas.length} dias`;
+}
 function mkId() {
   return 'r'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 }
@@ -712,6 +729,27 @@ function mkNum() {
   const y = new Date().getFullYear();
   const n = S.reservas.filter(r => (r.numero||'').startsWith('DED-'+y)).length + 1;
   return `DED-${y}-${String(n).padStart(3,'0')}`;
+}
+function getDatas(r) {
+  return (r.datas && r.datas.length) ? r.datas : [r.data];
+}
+function dateRangeArray(start, end) {
+  const out=[];
+  let d=new Date(start+'T12:00:00');
+  const last=new Date(end+'T12:00:00');
+  if(last<d) return out;
+  while(d<=last){
+    if(d.getDay()!==0) out.push(d.toISOString().slice(0,10));
+    d.setDate(d.getDate()+1);
+  }
+  return out;
+}
+function toggleMulti() {
+  const on=document.getElementById('f-multi').checked;
+  document.getElementById('f-data-fim-wrap').style.display=on?'block':'none';
+  document.getElementById('f-multi-hint').style.display=on?'block':'none';
+  document.getElementById('f-data-lbl').innerHTML = on ? 'Data inicial <span class="req">*</span>' : 'Data <span class="req">*</span>';
+  chkConflict();
 }
 async function sha(s) {
   const d = new TextEncoder().encode(s+'__ded_unifap_salt__');
@@ -914,7 +952,7 @@ function renderHome() {
         <div class="rcard-sub">${r.nome} · ${r.vinculo}</div>
       </div>${badge(r.status)}</div>
       <div class="rmeta">
-        <div class="rmi"><i class="fa-regular fa-calendar"></i>${fmtDate(r.data)}</div>
+        <div class="rmi"><i class="fa-regular fa-calendar"></i>${fmtPeriodo(r)}</div>
         <div class="rmi"><i class="fa-regular fa-clock"></i>${r.horaInicio}–${r.horaFim}</div>
         <div class="rmi"><i class="fa-regular fa-user"></i>${r.partic} part.</div>
       </div>
@@ -952,7 +990,7 @@ function mkDay(date,other){
   if(isToday)cls.push('cd-today');
   if(isSel&&!other&&!isSun)cls.push('cd-sel');
   cell.className=cls.join(' ');
-  const dr=S.reservas.filter(r=>r.data===ds&&r.status!=='cancelado');
+  const dr=S.reservas.filter(r=>r.status!=='cancelado'&&getDatas(r).includes(ds));
   const evts=dr.slice(0,2).map(r=>`<div class="cdev ${r.status}" title="${r.titulo}">${r.titulo}</div>`).join('');
   const more=dr.length>2?`<div class="cdmore">+${dr.length-2} mais</div>`:'';
   cell.innerHTML=`<div class="cdn">${date.getDate()}</div><div class="cdevts">${evts}${more}</div>`;
@@ -980,7 +1018,7 @@ function renderSlots() {
   document.getElementById('sl-title').textContent=DIAS[dow]+', '+dt.getDate()+' de '+MESES[dt.getMonth()]+' de '+dt.getFullYear();
   const c=document.getElementById('slc'); c.innerHTML='';
   if(dow===0){c.innerHTML='<div class="empty"><i class="fa-solid fa-ban"></i><p>Sem agendamento aos domingos.</p></div>';return;}
-  const dr=S.reservas.filter(r=>r.data===ds&&r.status!=='cancelado');
+  const dr=S.reservas.filter(r=>r.status!=='cancelado'&&getDatas(r).includes(ds));
   for(let i=0;i<HORAS.length-1;i++){
     const h=HORAS[i];
     const row=document.createElement('div'); row.className='slr';
@@ -1028,43 +1066,64 @@ function updFim(){
   HORAS.slice(HORAS.indexOf(ini)+1).forEach(h=>{const o=document.createElement('option');o.value=h;o.textContent=h;ff.appendChild(o);});
   chkConflict();
 }
+function getFormDatas(){
+  const multi=document.getElementById('f-multi').checked;
+  const d1=document.getElementById('f-data').value;
+  if(!multi) return d1?[d1]:[];
+  const d2=document.getElementById('f-data-fim').value;
+  if(!d1||!d2) return [];
+  return dateRangeArray(d1,d2);
+}
 function chkConflict(){
-  const data=document.getElementById('f-data').value;
+  const multi=document.getElementById('f-multi').checked;
+  const datas=getFormDatas();
   const ini=document.getElementById('f-ini').value;
   const fim=document.getElementById('f-fim').value;
   const ca=document.getElementById('ca');
   const ct=document.getElementById('ca-txt');
-  if(!data||!ini||!fim){ca.style.display='none';return;}
-  const dt=new Date(data+'T12:00:00');
-  if(dt.getDay()===0){ct.textContent='Domingos não estão disponíveis para agendamento.';ca.style.display='block';return;}
-  const cf=S.reservas.find(r=>r.data===data&&r.status!=='cancelado'&&r.id!==(S.editId||'')&&t2m(r.horaInicio)<t2m(fim)&&t2m(r.horaFim)>t2m(ini));
-  if(cf){ct.textContent=`Conflito: "${cf.titulo}" já está agendado das ${cf.horaInicio} às ${cf.horaFim}.`;ca.style.display='block';}
-  else ca.style.display='none';
+  if(!datas.length||!ini||!fim){ca.style.display='none';return;}
+  if(!multi){
+    const dt=new Date(datas[0]+'T12:00:00');
+    if(dt.getDay()===0){ct.textContent='Domingos não estão disponíveis para agendamento.';ca.style.display='block';return;}
+  }
+  for(const ds of datas){
+    const cf=S.reservas.find(r=>r.status!=='cancelado'&&r.id!==(S.editId||'')&&getDatas(r).includes(ds)&&t2m(r.horaInicio)<t2m(fim)&&t2m(r.horaFim)>t2m(ini));
+    if(cf){ct.textContent=`Conflito em ${fmtDate(ds)}: "${cf.titulo}" já está agendado das ${cf.horaInicio} às ${cf.horaFim}.`;ca.style.display='block';return;}
+  }
+  ca.style.display='none';
 }
 async function submitR(){
   const g=id=>document.getElementById(id).value.trim();
   const nome=g('f-nome'),email=g('f-email'),tel=g('f-tel');
   const vinculo=document.getElementById('f-vinculo').value;
   const depto=g('f-depto'),tipo=document.getElementById('f-tipo').value;
-  const titulo=g('f-titulo'),data=g('f-data');
+  const titulo=g('f-titulo');
+  const multi=document.getElementById('f-multi').checked;
+  const datas=getFormDatas();
   const ini=document.getElementById('f-ini').value,fim=document.getElementById('f-fim').value;
   const partic=parseInt(document.getElementById('f-part').value)||0;
   const obs=g('f-obs');
-  if(!nome||!email||!vinculo||!tipo||!titulo||!data||!ini||!fim){toast('Preencha todos os campos obrigatórios (*)','err');return;}
+  if(!nome||!email||!vinculo||!tipo||!titulo||!datas.length||!ini||!fim){toast('Preencha todos os campos obrigatórios (*)','err');return;}
+  if(multi && datas.length<1){toast('Verifique as datas inicial e final do evento.','err');return;}
   if(!document.getElementById('f-ofic-ack').checked){toast('Confirme que enviará o ofício para ded@unifap.br em até 12 horas.','err');return;}
   if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){toast('Informe um e-mail válido.','err');return;}
   if(partic<1||partic>120){toast('Participantes: entre 1 e 120.','err');return;}
-  const dt=new Date(data+'T12:00:00');
-  if(dt.getDay()===0){toast('Domingos não disponíveis.','err');return;}
-  const cf=S.reservas.find(r=>r.data===data&&r.status!=='cancelado'&&r.id!==(S.editId||'')&&t2m(r.horaInicio)<t2m(fim)&&t2m(r.horaFim)>t2m(ini));
-  if(cf){toast('Conflito de horário com outra reserva.','err');return;}
+  if(!multi){
+    const dt=new Date(datas[0]+'T12:00:00');
+    if(dt.getDay()===0){toast('Domingos não disponíveis.','err');return;}
+  }
+  for(const ds of datas){
+    const cf=S.reservas.find(r=>r.status!=='cancelado'&&r.id!==(S.editId||'')&&getDatas(r).includes(ds)&&t2m(r.horaInicio)<t2m(fim)&&t2m(r.horaFim)>t2m(ini));
+    if(cf){toast(`Conflito de horário em ${fmtDate(ds)}.`,'err');return;}
+  }
   const recursos=[...document.querySelectorAll('#rec-container input:checked')].map(c=>c.value);
   const now=new Date().toISOString();
+  const data=datas[0], dataFim=datas[datas.length-1];
   showLoad();
   try{
     if(S.editId){
       const r=S.reservas.find(x=>x.id===S.editId);
-      const up={...r,nome,email,tel,vinculo,depto,tipo,titulo,data,horaInicio:ini,horaFim:fim,partic,recursos,obs,status:'pendente',atualizadoEm:now,oficioRecebido:false,prazoOficio:new Date(Date.now()+12*3600000).toISOString()};
+      const up={...r,nome,email,tel,vinculo,depto,tipo,titulo,data,dataFim,datas,horaInicio:ini,horaFim:fim,partic,recursos,obs,status:'pendente',atualizadoEm:now,oficioRecebido:false,prazoOficio:new Date(Date.now()+12*3600000).toISOString()};
       await saveR(up);
       toast('Reserva atualizada! Envie o ofício para ded@unifap.br em até 12 horas.','ok');
       S.editId=null;
@@ -1072,7 +1131,7 @@ async function submitR(){
     } else {
       const id=mkId(), numero=mkNum();
       const prazoOficio=new Date(Date.now()+12*3600000).toISOString();
-      await saveR({id,numero,nome,email,tel,vinculo,depto,tipo,titulo,data,horaInicio:ini,horaFim:fim,partic,recursos,obs,status:'pendente',criadoEm:now,atualizadoEm:now,obsAdmin:'',oficioRecebido:false,prazoOficio});
+      await saveR({id,numero,nome,email,tel,vinculo,depto,tipo,titulo,data,dataFim,datas,horaInicio:ini,horaFim:fim,partic,recursos,obs,status:'pendente',criadoEm:now,atualizadoEm:now,obsAdmin:'',oficioRecebido:false,prazoOficio});
       toast(`Solicitação enviada! Nº ${numero}. Envie o ofício para ded@unifap.br em até 12 horas.`,'ok');
     }
     clearF(); nav('consultar');
@@ -1080,10 +1139,12 @@ async function submitR(){
   hideLoad();
 }
 function clearF(){
-  ['f-nome','f-email','f-tel','f-depto','f-titulo','f-data','f-obs','f-part'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['f-nome','f-email','f-tel','f-depto','f-titulo','f-data','f-data-fim','f-obs','f-part'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   ['f-vinculo','f-tipo','f-ini','f-fim'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   document.querySelectorAll('#rec-container input').forEach(c=>{c.checked=false;c.closest('label').classList.remove('on');});
   document.getElementById('f-ofic-ack').checked=false;
+  document.getElementById('f-multi').checked=false;
+  toggleMulti();
   document.getElementById('ca').style.display='none';
   S.editId=null;
   document.getElementById('form-sec-title').textContent='Solicitar reserva';
@@ -1155,7 +1216,7 @@ function mkCard(r,isAdm){
       <div class="rcard-sub">${r.nome} · ${r.vinculo}${r.depto?' · '+r.depto:''}</div>
     </div></div>
     <div class="rmeta">
-      <div class="rmi"><i class="fa-regular fa-calendar"></i>${fmtDate(r.data)}</div>
+      <div class="rmi"><i class="fa-regular fa-calendar"></i>${fmtPeriodo(r)}</div>
       <div class="rmi"><i class="fa-regular fa-clock"></i>${r.horaInicio}–${r.horaFim}</div>
       <div class="rmi"><i class="fa-regular fa-user"></i>${r.partic} participantes</div>
       <div class="rmi"><i class="fa-regular fa-bookmark"></i>${r.tipo}</div>
@@ -1216,7 +1277,12 @@ function editR(id){
     document.getElementById('f-depto').value=r.depto||'';
     document.getElementById('f-tipo').value=r.tipo;
     document.getElementById('f-titulo').value=r.titulo;
-    document.getElementById('f-data').value=r.data;
+    const datas=getDatas(r);
+    const isMulti=datas.length>1;
+    document.getElementById('f-multi').checked=isMulti;
+    toggleMulti();
+    document.getElementById('f-data').value=datas[0];
+    if(isMulti) document.getElementById('f-data-fim').value=datas[datas.length-1];
     document.getElementById('f-ini').value=r.horaInicio;
     updFim();
     setTimeout(()=>{ document.getElementById('f-fim').value=r.horaFim; },60);
@@ -1245,7 +1311,7 @@ function showDetail(id){
       <div class="di di-full"><label>Título do evento</label><span style="font-size:16px;font-weight:600;color:var(--primary)">${r.titulo}</span></div>
       <div class="di"><label>Tipo de evento</label><span>${r.tipo}</span></div>
       <div class="di"><label>Nº de participantes</label><span>${r.partic} pessoas</span></div>
-      <div class="di"><label>Data</label><span>${fmtDate(r.data)}</span></div>
+      <div class="di ${getDatas(r).length>1?'di-full':''}"><label>${getDatas(r).length>1?'Período (horário diário aplicado a todos os dias)':'Data'}</label><span>${fmtPeriodo(r)}</span></div>
       <div class="di"><label>Horário</label><span>${r.horaInicio} – ${r.horaFim}</span></div>
       ${r.prazoOficio&&r.status!=='cancelado'?`<div class="di di-full"><label>Status do ofício (ded@unifap.br)</label><span>${oficioBadge(r)||'—'}</span></div>`:''}
       <div class="di"><label>Solicitante</label><span>${r.nome}</span></div>
